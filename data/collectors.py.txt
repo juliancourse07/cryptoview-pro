@@ -1,0 +1,100 @@
+"""
+Recolección de datos de exchanges
+"""
+import ccxt
+import pandas as pd
+import numpy as np
+from typing import Optional, Tuple
+from datetime import datetime, timedelta
+import streamlit as st
+from config.settings import BINANCE_API_KEY, BINANCE_API_SECRET, CACHE_TTL
+
+class CryptoDataCollector:
+    """Recolecta datos de criptomonedas desde exchanges"""
+    
+    def __init__(self, exchange_name: str = 'binance'):
+        self.exchange_name = exchange_name
+        self.exchange = self._initialize_exchange()
+        
+    def _initialize_exchange(self):
+        """Inicializa conexión con el exchange"""
+        try:
+            exchange_class = getattr(ccxt, self.exchange_name)
+            exchange = exchange_class({
+                'enableRateLimit': True,
+                'timeout': 30000,
+                'apiKey': BINANCE_API_KEY,
+                'secret': BINANCE_API_SECRET,
+            })
+            return exchange
+        except Exception as e:
+            st.error(f"❌ Error conectando a {self.exchange_name}: {e}")
+            return None
+    
+    @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+    def fetch_ohlcv(_self, symbol: str, timeframe: str = '1h', limit: int = 1000) -> pd.DataFrame:
+        """
+        Obtiene datos OHLCV (Open, High, Low, Close, Volume)
+        """
+        if _self.exchange is None:
+            return pd.DataFrame()
+        
+        try:
+            ohlcv = _self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+            
+            df = pd.DataFrame(
+                ohlcv,
+                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+            )
+            
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            
+            df['returns'] = df['close'].pct_change()
+            df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
+            
+            return df
+            
+        except Exception as e:
+            st.error(f"❌ Error obteniendo datos: {e}")
+            return pd.DataFrame()
+    
+    def get_current_price(self, symbol: str) -> Optional[float]:
+        """Obtiene el precio actual"""
+        if self.exchange is None:
+            return None
+        
+        try:
+            ticker = self.exchange.fetch_ticker(symbol)
+            return ticker['last']
+        except Exception as e:
+            st.error(f"❌ Error obteniendo precio: {e}")
+            return None
+    
+    def get_24h_stats(self, symbol: str) -> dict:
+        """Obtiene estadísticas de 24h"""
+        if self.exchange is None:
+            return {}
+        
+        try:
+            ticker = self.exchange.fetch_ticker(symbol)
+            return {
+                'last': ticker['last'],
+                'high': ticker['high'],
+                'low': ticker['low'],
+                'volume': ticker['quoteVolume'],
+                'change': ticker.get('change', 0),
+                'percentage': ticker.get('percentage', 0)
+            }
+        except Exception as e:
+            st.error(f"❌ Error obteniendo estadísticas: {e}")
+            return {}
+
+def test_connection(exchange_name: str = 'binance') -> bool:
+    """Prueba la conexión con el exchange"""
+    try:
+        collector = CryptoDataCollector(exchange_name)
+        price = collector.get_current_price('BTC/USDT')
+        return price is not None
+    except:
+        return False

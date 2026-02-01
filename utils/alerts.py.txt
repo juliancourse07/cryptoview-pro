@@ -1,0 +1,63 @@
+"""
+Sistema de alertas
+"""
+import streamlit as st
+from typing import Dict, List
+from datetime import datetime
+
+class AlertSystem:
+    """Sistema de alertas configurable"""
+    
+    def __init__(self):
+        self.alerts = []
+        self.history = []
+    
+    def add_alert(self, alert_config: Dict) -> None:
+        """Agrega una nueva alerta"""
+        alert_config['id'] = len(self.alerts) + 1
+        alert_config['active'] = True
+        alert_config['created'] = datetime.now()
+        self.alerts.append(alert_config)
+    
+    def check_alerts(self, current_data: Dict) -> List[Dict]:
+        """Verifica si alguna alerta debe dispararse"""
+        triggered = []
+        
+        for alert in self.alerts:
+            if not alert['active']:
+                continue
+            
+            should_trigger = self._evaluate_condition(alert, current_data)
+            
+            if should_trigger:
+                triggered.append(alert)
+                self._send_notification(alert, current_data)
+        
+        return triggered
+    
+    def _evaluate_condition(self, alert: Dict, data: Dict) -> bool:
+        """Evalúa si se cumple la condición"""
+        alert_type = alert['type']
+        condition = alert['condition']
+        threshold = alert['threshold']
+        
+        value = data.get(alert_type.lower())
+        
+        if value is None:
+            return False
+        
+        if condition == "Mayor que":
+            return value > threshold
+        elif condition == "Menor que":
+            return value < threshold
+        
+        return False
+    
+    def _send_notification(self, alert: Dict, data: Dict) -> None:
+        """Envía notificación"""
+        message = f"🔔 Alerta: {alert['crypto']} - {alert['type']} {alert['condition']} {alert['threshold']}"
+        
+        if 'App' in alert.get('methods', []):
+            st.toast(message, icon="🔔")
+
+alert_system = AlertSystem()

@@ -1,0 +1,28 @@
+"""
+Procesamiento y limpieza de datos
+"""
+import pandas as pd
+import numpy as np
+
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Limpia y prepara datos"""
+    df = df.copy()
+    df = df[~df.index.duplicated(keep='first')]
+    df = df.sort_index()
+    df = df.dropna()
+    return df
+
+def resample_data(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
+    """Remuestra datos a un timeframe diferente"""
+    ohlc_dict = {
+        'open': 'first',
+        'high': 'max',
+        'low': 'min',
+        'close': 'last',
+        'volume': 'sum'
+    }
+    
+    df_resampled = df.resample(timeframe).agg(ohlc_dict)
+    df_resampled = df_resampled.dropna()
+    
+    return df_resampled
