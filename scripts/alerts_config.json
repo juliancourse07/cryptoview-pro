@@ -1,0 +1,74 @@
+{
+  "alerts": [
+    {
+      "id": 1,
+      "crypto": "BTC/USDT",
+      "type": "precio",
+      "condition": "menor_que",
+      "threshold": 42000,
+      "exchange": "kraken",
+      "enabled": true,
+      "created_at": "2026-02-01T15:00:00",
+      "description": "Alerta cuando Bitcoin baja de $42,000"
+    },
+    {
+      "id": 2,
+      "crypto": "BTC/USDT",
+      "type": "precio",
+      "condition": "mayor_que",
+      "threshold": 50000,
+      "exchange": "kraken",
+      "enabled": true,
+      "created_at": "2026-02-01T15:00:00",
+      "description": "Alerta cuando Bitcoin sube de $50,000"
+    },
+    {
+      "id": 3,
+      "crypto": "ETH/USDT",
+      "type": "precio",
+      "condition": "menor_que",
+      "threshold": 2000,
+      "exchange": "kraken",
+      "enabled": true,
+      "created_at": "2026-02-01T15:00:00",
+      "description": "Alerta cuando Ethereum baja de $2,000"
+    },
+    {
+      "id": 4,
+      "crypto": "ETH/USDT",
+      "type": "precio",
+      "condition": "mayor_que",
+      "threshold": 3000,
+      "exchange": "kraken",
+      "enabled": true,
+      "created_at": "2026-02-01T15:00:00",
+      "description": "Alerta cuando Ethereum sube de $3,000"
+    },
+    {
+      "id": 5,
+      "crypto": "BTC/USDT",
+      "type": "rsi",
+      "condition": "menor_que",
+      "threshold": 30,
+      "enabled": true,
+      "created_at": "2026-02-01T15:00:00",
+      "description": "Alerta cuando Bitcoin está en sobreventa (RSI < 30)"
+    },
+    {
+      "id": 6,
+      "crypto": "BTC/USDT",
+      "type": "rsi",
+      "condition": "mayor_que",
+      "threshold": 70,
+      "enabled": true,
+      "created_at": "2026-02-01T15:00:00",
+      "description": "Alerta cuando Bitcoin está en sobrecompra (RSI > 70)"
+    }
+  ],
+  "config": {
+    "check_interval_minutes": 60,
+    "telegram_enabled": true,
+    "email_enabled": false,
+    "last_updated": "2026-02-01T15:00:00"
+  }
+}
