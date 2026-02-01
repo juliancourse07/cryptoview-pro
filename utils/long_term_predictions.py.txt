@@ -1,0 +1,103 @@
+"""
+Utilidades para predicciones de largo plazo
+Agrupa por días, semanas, meses para mejor visualización
+"""
+import pandas as pd
+import numpy as np
+from datetime import timedelta
+
+def aggregate_predictions(predictions_df: pd.DataFrame, aggregation: str = 'daily') -> pd.DataFrame:
+    """
+    Agrupa predicciones por período
+    
+    Args:
+        predictions_df: DataFrame con predicciones horarias
+        aggregation: 'daily', 'weekly', 'monthly'
+        
+    Returns:
+        DataFrame agrupado con min, max, avg por período
+    """
+    pred_copy = predictions_df.copy()
+    
+    if aggregation == 'daily':
+        freq = 'D'
+        period_name = 'Día'
+    elif aggregation == 'weekly':
+        freq = 'W'
+        period_name = 'Semana'
+    elif aggregation == 'monthly':
+        freq = 'M'
+        period_name = 'Mes'
+    else:
+        freq = 'D'
+        period_name = 'Día'
+    
+    # Agrupar
+    grouped = pred_copy.groupby(pd.Grouper(freq=freq)).agg({
+        'predicted_price': ['mean', 'min', 'max', 'std']
+    })
+    
+    # Manejar bounds si existen
+    if 'lower_bound' in pred_copy.columns:
+        grouped_bounds = pred_copy.groupby(pd.Grouper(freq=freq)).agg({
+            'lower_bound': 'min',
+            'upper_bound': 'max'
+        })
+        grouped = pd.concat([grouped, grouped_bounds], axis=1)
+    
+    # Aplanar columnas
+    grouped.columns = ['avg_price', 'min_price', 'max_price', 'volatility'] + (['lower_bound', 'upper_bound'] if 'lower_bound' in pred_copy.columns else [])
+    grouped = grouped.reset_index()
+    
+    return grouped
+
+
+def create_calendar_view(predictions_df: pd.DataFrame, current_price: float) -> pd.DataFrame:
+    """
+    Crea vista de calendario para predicciones
+    
+    Returns:
+        DataFrame con formato de calendario
+    """
+    pred_copy = predictions_df.copy()
+    pred_copy['date'] = pred_copy.index.date
+    pred_copy['weekday'] = pred_copy.index.day_name()
+    
+    daily = pred_copy.groupby('date').agg({
+        'predicted_price': 'mean'
+    }).reset_index()
+    
+    daily['change_pct'] = ((daily['predicted_price'] - current_price) / current_price) * 100
+    daily['trend'] = daily['change_pct'].apply(lambda x: '📈' if x > 2 else '📉' if x < -2 else '➡️')
+    
+    return daily
+
+
+def get_milestone_predictions(predictions_df: pd.DataFrame, milestones: list = None) -> dict:
+    """
+    Obtiene predicciones en hitos específicos (7d, 14d, 30d, etc)
+    
+    Args:
+        predictions_df: DataFrame con predicciones
+        milestones: Lista de días para extraer [7, 14, 30, 60, 90, 180, 365]
+        
+    Returns:
+        Dict con predicciones en cada milestone
+    """
+    if milestones is None:
+        milestones = [7, 14, 30, 60, 90, 180, 365]
+    
+    results = {}
+    
+    for days in milestones:
+        hours = days * 24
+        if hours <= len(predictions_df):
+            idx = min(hours - 1, len(predictions_df) - 1)
+            results[f"{days}d"] = {
+                'date': predictions_df.index[idx],
+                'price': predictions_df['predicted_price'].iloc[idx],
+                'lower': predictions_df['lower_bound'].iloc[idx] if 'lower_bound' in predictions_df.columns else None,
+                'upper': predictions_df['upper_bound'].iloc[idx] if 'upper_bound' in predictions_df.columns else None,
+            }
+    
+    return results
