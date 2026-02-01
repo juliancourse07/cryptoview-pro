@@ -3,72 +3,107 @@
     {
       "id": 1,
       "crypto": "BTC/USDT",
-      "type": "precio",
-      "condition": "menor_que",
-      "threshold": 42000,
+      "type": "minimo_mensual",
       "exchange": "kraken",
       "enabled": true,
-      "created_at": "2026-02-01T15:00:00",
-      "description": "Alerta cuando Bitcoin baja de $42,000"
+      "priority": "critical",
+      "description": "🔴 Bitcoin cayó bajo el mínimo del último mes (soporte roto)"
     },
     {
       "id": 2,
       "crypto": "BTC/USDT",
-      "type": "precio",
-      "condition": "mayor_que",
-      "threshold": 50000,
+      "type": "maximo_mensual",
       "exchange": "kraken",
       "enabled": true,
-      "created_at": "2026-02-01T15:00:00",
-      "description": "Alerta cuando Bitcoin sube de $50,000"
+      "priority": "high",
+      "description": "🟢 Bitcoin superó el máximo del último mes (resistencia rota)"
     },
     {
       "id": 3,
       "crypto": "ETH/USDT",
-      "type": "precio",
-      "condition": "menor_que",
-      "threshold": 2000,
+      "type": "minimo_mensual",
       "exchange": "kraken",
       "enabled": true,
-      "created_at": "2026-02-01T15:00:00",
-      "description": "Alerta cuando Ethereum baja de $2,000"
+      "priority": "critical",
+      "description": "🔴 Ethereum cayó bajo el mínimo del último mes"
     },
     {
       "id": 4,
       "crypto": "ETH/USDT",
-      "type": "precio",
-      "condition": "mayor_que",
-      "threshold": 3000,
+      "type": "maximo_mensual",
       "exchange": "kraken",
       "enabled": true,
-      "created_at": "2026-02-01T15:00:00",
-      "description": "Alerta cuando Ethereum sube de $3,000"
+      "priority": "high",
+      "description": "🟢 Ethereum superó el máximo del último mes"
     },
     {
       "id": 5,
       "crypto": "BTC/USDT",
       "type": "rsi",
       "condition": "menor_que",
-      "threshold": 30,
+      "threshold": 25,
+      "exchange": "kraken",
       "enabled": true,
-      "created_at": "2026-02-01T15:00:00",
-      "description": "Alerta cuando Bitcoin está en sobreventa (RSI < 30)"
+      "priority": "high",
+      "description": "⚠️ Bitcoin RSI extremo <25 (sobreventa crítica)"
     },
     {
       "id": 6,
       "crypto": "BTC/USDT",
       "type": "rsi",
       "condition": "mayor_que",
-      "threshold": 70,
+      "threshold": 75,
+      "exchange": "kraken",
       "enabled": true,
-      "created_at": "2026-02-01T15:00:00",
-      "description": "Alerta cuando Bitcoin está en sobrecompra (RSI > 70)"
+      "priority": "high",
+      "description": "⚠️ Bitcoin RSI extremo >75 (sobrecompra crítica)"
+    },
+    {
+      "id": 7,
+      "crypto": "BTC/USDT",
+      "type": "cambio_24h",
+      "threshold": 10,
+      "exchange": "kraken",
+      "enabled": true,
+      "priority": "critical",
+      "description": "🚨 Bitcoin cambió >10% en 24h (volatilidad extrema)"
+    },
+    {
+      "id": 8,
+      "crypto": "ETH/USDT",
+      "type": "cambio_24h",
+      "threshold": 15,
+      "exchange": "kraken",
+      "enabled": true,
+      "priority": "critical",
+      "description": "🚨 Ethereum cambió >15% en 24h"
+    },
+    {
+      "id": 9,
+      "crypto": "SOL/USDT",
+      "type": "minimo_mensual",
+      "exchange": "kraken",
+      "enabled": true,
+      "priority": "medium",
+      "description": "🔴 Solana cayó bajo mínimo mensual"
+    },
+    {
+      "id": 10,
+      "crypto": "BNB/USDT",
+      "type": "minimo_mensual",
+      "exchange": "binance",
+      "enabled": true,
+      "priority": "medium",
+      "description": "🔴 BNB cayó bajo mínimo mensual"
     }
   ],
   "config": {
     "check_interval_minutes": 60,
     "telegram_enabled": true,
     "email_enabled": false,
-    "last_updated": "2026-02-01T15:00:00"
+    "last_updated": "2026-02-01T23:30:00",
+    "top_cryptos": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "ADA/USDT"],
+    "alert_cooldown_minutes": 60,
+    "notes": "Alertas inteligentes optimizadas para detectar rupturas críticas de soporte/resistencia"
   }
 }
