@@ -1,5 +1,6 @@
 """
 CRYPTOVIEW PRO - Sistema Avanzado de Pronóstico de Criptomonedas
+Developed by Julian E. Coronado Gil - Data Scientist
 """
 import streamlit as st
 import pandas as pd
@@ -19,7 +20,7 @@ from utils.alerts import alert_system
 
 # Configuración de página
 st.set_page_config(
-    page_title="CryptoView Pro",
+    page_title="CryptoView Pro - by Julian E. Coronado Gil",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -40,12 +41,12 @@ if 'alerts' not in st.session_state:
 # ============ SIDEBAR ============
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/000000/bitcoin.png", width=80)
-    st.title("⚙️ Configuración")
+    st.title("⚙️ Configuration")
     
     st.markdown("---")
     
     crypto_symbol = st.selectbox(
-        "💰 Criptomoneda",
+        "💰 Cryptocurrency",
         AVAILABLE_CRYPTOS,
         index=AVAILABLE_CRYPTOS.index(DEFAULT_CRYPTO)
     )
@@ -58,25 +59,29 @@ with st.sidebar:
     )
     
     forecast_hours = st.slider(
-        "🔮 Horizonte de predicción (horas)",
+        "🔮 Forecast Horizon (hours)",
         min_value=1,
         max_value=168,
         value=FORECAST_HOURS
     )
     
     st.markdown("---")
-    st.markdown("### 📊 Vista de Datos")
+    st.markdown("### 📊 Data View")
     
     data_limit = st.number_input(
-        "Cantidad de datos a cargar",
+        "Data points to load",
         min_value=100,
         max_value=2000,
         value=DATA_LIMIT,
         step=100
     )
     
-    show_volume = st.checkbox("Mostrar volumen", value=True)
+    show_volume = st.checkbox("Show volume", value=True)
     
+    st.markdown("---")
+    st.markdown("### 👨‍💻 Developer")
+    st.caption("**Julian E. Coronado Gil**")
+    st.caption("Data Scientist")
     st.markdown("---")
     st.caption("💡 CryptoView Pro v1.0")
     st.caption(f"🕐 {datetime.now().strftime('%H:%M:%S')}")
@@ -102,7 +107,7 @@ def create_main_chart(df, show_volume=True):
             shared_xaxes=True,
             vertical_spacing=0.03,
             row_heights=[0.7, 0.3],
-            subplot_titles=('Precio', 'Volumen')
+            subplot_titles=('Price', 'Volume')
         )
     else:
         fig = make_subplots(rows=1, cols=1)
@@ -116,7 +121,7 @@ def create_main_chart(df, show_volume=True):
                 high=df['high'],
                 low=df['low'],
                 close=df['close'],
-                name='Precio',
+                name='Price',
                 increasing_line_color=COLORS['success'],
                 decreasing_line_color=COLORS['danger']
             ),
@@ -128,7 +133,7 @@ def create_main_chart(df, show_volume=True):
                 x=df.index,
                 y=df['close'],
                 mode='lines',
-                name='Precio',
+                name='Price',
                 line=dict(color=COLORS['accent'], width=2)
             ),
             row=1, col=1
@@ -168,7 +173,7 @@ def create_main_chart(df, show_volume=True):
             go.Bar(
                 x=df.index,
                 y=df['volume'],
-                name='Volumen',
+                name='Volume',
                 marker_color=colors_vol,
                 opacity=0.5
             ),
@@ -176,9 +181,9 @@ def create_main_chart(df, show_volume=True):
         )
     
     fig.update_layout(
-        title=f"{crypto_symbol} - Análisis",
-        xaxis_title="Fecha",
-        yaxis_title="Precio (USDT)",
+        title=f"{crypto_symbol} - Analysis",
+        xaxis_title="Date",
+        yaxis_title="Price (USDT)",
         hovermode='x unified',
         template='plotly_dark',
         height=700,
@@ -202,7 +207,10 @@ with col2:
             🚀 CRYPTOVIEW PRO
         </h1>
         <p style='color: #9CA3AF; font-size: 16px;'>
-            Sistema Avanzado de Pronóstico de Criptomonedas
+            Advanced Cryptocurrency Forecasting System
+        </p>
+        <p style='color: #6B7280; font-size: 12px; margin-top: 8px;'>
+            Developed by <strong style='color: #00D9FF;'>Julian E. Coronado Gil</strong> - Data Scientist
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -210,11 +218,11 @@ with col2:
 st.markdown("---")
 
 # ============ CARGAR DATOS ============
-with st.spinner(f'📡 Cargando datos de {crypto_symbol}...'):
+with st.spinner(f'📡 Loading {crypto_symbol} data...'):
     df = load_crypto_data(crypto_symbol, timeframe, data_limit)
 
 if df.empty:
-    st.error("❌ No se pudieron cargar los datos. Verifica la conexión.")
+    st.error("❌ Could not load data. Please check connection.")
     st.stop()
 
 st.session_state.data = df
@@ -241,7 +249,7 @@ col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
     st.markdown(f"""
     <div class='metric-card'>
-        <div style='font-size: 14px; color: #9CA3AF;'>💰 Precio Actual</div>
+        <div style='font-size: 14px; color: #9CA3AF;'>💰 Current Price</div>
         <div class='big-metric'>${current_price:,.2f}</div>
     </div>
     """, unsafe_allow_html=True)
@@ -249,7 +257,7 @@ with col1:
 with col2:
     st.markdown(f"""
     <div class='metric-card'>
-        <div style='font-size: 14px; color: #9CA3AF;'>📈 Cambio 24h</div>
+        <div style='font-size: 14px; color: #9CA3AF;'>📈 24h Change</div>
         <div style='font-size: 24px; font-weight: 700; color: {price_color};'>
             {change_24h_pct:+.2f}%
         </div>
@@ -260,7 +268,7 @@ with col2:
 with col3:
     st.markdown(f"""
     <div class='metric-card'>
-        <div style='font-size: 14px; color: #9CA3AF;'>📊 Volumen 24h</div>
+        <div style='font-size: 14px; color: #9CA3AF;'>📊 24h Volume</div>
         <div style='font-size: 20px; font-weight: 700; color: {COLORS['accent']};'>
             ${volume_24h/1e6:.1f}M
         </div>
@@ -269,7 +277,7 @@ with col3:
 
 with col4:
     rsi_color = COLORS['danger'] if current_rsi > 70 else COLORS['success'] if current_rsi < 30 else COLORS['warning']
-    rsi_status = "Sobrecompra" if current_rsi > 70 else "Sobreventa" if current_rsi < 30 else "Neutral"
+    rsi_status = "Overbought" if current_rsi > 70 else "Oversold" if current_rsi < 30 else "Neutral"
     
     st.markdown(f"""
     <div class='metric-card'>
@@ -284,7 +292,7 @@ with col4:
 with col5:
     st.markdown(f"""
     <div class='metric-card'>
-        <div style='font-size: 14px; color: #9CA3AF;'>🎲 Señal</div>
+        <div style='font-size: 14px; color: #9CA3AF;'>🎲 Signal</div>
         <div style='font-size: 28px; font-weight: 700;'>{signal_emoji}</div>
         <div style='font-size: 12px; color: #6B7280; text-transform: uppercase;'>{overall_signal}</div>
     </div>
@@ -293,24 +301,24 @@ with col5:
 st.markdown("---")
 
 # ============ TABS ============
-tab1, tab2, tab3 = st.tabs(["🏠 Dashboard", "📊 Análisis Técnico", "🔔 Alertas"])
+tab1, tab2, tab3 = st.tabs(["🏠 Dashboard", "📊 Technical Analysis", "🔔 Alerts"])
 
 # TAB 1: DASHBOARD
 with tab1:
-    st.markdown("### 📈 Gráfico Principal")
+    st.markdown("### 📈 Main Chart")
     
     col_btn1, col_btn2 = st.columns(2)
     
     with col_btn1:
-        if st.button("🔄 Actualizar Datos", use_container_width=True):
+        if st.button("🔄 Refresh Data", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
     
     with col_btn2:
-        if st.button("📥 Descargar CSV", use_container_width=True):
+        if st.button("📥 Download CSV", use_container_width=True):
             csv = df.to_csv()
             st.download_button(
-                "⬇️ Descargar",
+                "⬇️ Download",
                 csv,
                 f"{crypto_symbol.replace('/', '_')}_{datetime.now().strftime('%Y%m%d')}.csv",
                 "text/csv"
@@ -320,13 +328,13 @@ with tab1:
     st.plotly_chart(fig_main, use_container_width=True)
     
     # Datos recientes
-    st.markdown("### 📋 Datos Recientes")
+    st.markdown("### 📋 Recent Data")
     recent_data = df[['open', 'high', 'low', 'close', 'volume']].tail(10)
     st.dataframe(recent_data, use_container_width=True)
 
 # TAB 2: ANÁLISIS TÉCNICO
 with tab2:
-    st.markdown("## 📊 Análisis Técnico Detallado")
+    st.markdown("## 📊 Detailed Technical Analysis")
     
     # RSI
     st.markdown("### 📉 RSI (Relative Strength Index)")
@@ -342,8 +350,8 @@ with tab2:
             line=dict(color=COLORS['accent'], width=2)
         ))
         
-        fig_rsi.add_hline(y=70, line_dash="dash", line_color=COLORS['danger'], annotation_text="Sobrecompra")
-        fig_rsi.add_hline(y=30, line_dash="dash", line_color=COLORS['success'], annotation_text="Sobreventa")
+        fig_rsi.add_hline(y=70, line_dash="dash", line_color=COLORS['danger'], annotation_text="Overbought")
+        fig_rsi.add_hline(y=30, line_dash="dash", line_color=COLORS['success'], annotation_text="Oversold")
         
         fig_rsi.update_layout(
             height=300,
@@ -395,25 +403,25 @@ with tab2:
         st.plotly_chart(fig_macd, use_container_width=True)
     
     # Tabla de indicadores
-    st.markdown("### 📋 Indicadores Actuales")
+    st.markdown("### 📋 Current Indicators")
     
     indicators_data = []
     
     if 'rsi' in df.columns:
         rsi_val = df['rsi'].iloc[-1]
         indicators_data.append({
-            'Indicador': 'RSI (14)',
-            'Valor': f'{rsi_val:.2f}',
-            'Estado': '🔴 Sobrecompra' if rsi_val > 70 else '🟢 Sobreventa' if rsi_val < 30 else '🟡 Neutral'
+            'Indicator': 'RSI (14)',
+            'Value': f'{rsi_val:.2f}',
+            'Status': '🔴 Overbought' if rsi_val > 70 else '🟢 Oversold' if rsi_val < 30 else '🟡 Neutral'
         })
     
     if 'macd' in df.columns:
         macd_val = df['macd'].iloc[-1]
         macd_sig = df['macd_signal'].iloc[-1]
         indicators_data.append({
-            'Indicador': 'MACD',
-            'Valor': f'{macd_val:.4f}',
-            'Estado': '🟢 Alcista' if macd_val > macd_sig else '🔴 Bajista'
+            'Indicator': 'MACD',
+            'Value': f'{macd_val:.4f}',
+            'Status': '🟢 Bullish' if macd_val > macd_sig else '🔴 Bearish'
         })
     
     df_indicators = pd.DataFrame(indicators_data)
@@ -421,24 +429,24 @@ with tab2:
 
 # TAB 3: ALERTAS
 with tab3:
-    st.markdown("## 🔔 Sistema de Alertas")
+    st.markdown("## 🔔 Alert System")
     
-    st.info("🚧 Sistema de alertas básico. Funcionalidad completa próximamente.")
+    st.info("🚧 Basic alert system. Full functionality coming soon.")
     
     with st.form("alert_form"):
         col1, col2 = st.columns(2)
         
         with col1:
-            alert_type = st.selectbox("Tipo", ["Precio", "RSI", "Cambio %"])
-            condition = st.selectbox("Condición", ["Mayor que", "Menor que"])
+            alert_type = st.selectbox("Type", ["Price", "RSI", "Change %"])
+            condition = st.selectbox("Condition", ["Greater than", "Less than"])
         
         with col2:
-            if alert_type == "Precio":
-                threshold = st.number_input("Valor", value=float(current_price), step=100.0)
+            if alert_type == "Price":
+                threshold = st.number_input("Value", value=float(current_price), step=100.0)
             else:
-                threshold = st.number_input("Valor", value=70.0, step=5.0)
+                threshold = st.number_input("Value", value=70.0, step=5.0)
         
-        submitted = st.form_submit_button("✅ Crear Alerta", use_container_width=True)
+        submitted = st.form_submit_button("✅ Create Alert", use_container_width=True)
         
         if submitted:
             new_alert = {
@@ -449,10 +457,10 @@ with tab3:
                 'created': datetime.now()
             }
             st.session_state.alerts.append(new_alert)
-            st.success(f"✅ Alerta creada: {alert_type} {condition} {threshold}")
+            st.success(f"✅ Alert created: {alert_type} {condition} {threshold}")
     
     if st.session_state.alerts:
-        st.markdown("### 📋 Alertas Activas")
+        st.markdown("### 📋 Active Alerts")
         for i, alert in enumerate(st.session_state.alerts):
             col1, col2 = st.columns([4, 1])
             with col1:
@@ -469,6 +477,6 @@ col_f1, col_f2, col_f3 = st.columns(3)
 with col_f1:
     st.caption("🚀 CryptoView Pro v1.0")
 with col_f2:
-    st.caption("💻 Desarrollado con ❤️ usando Streamlit")
+    st.caption("👨‍💻 Developed by **Julian E. Coronado Gil** - Data Scientist")
 with col_f3:
     st.caption(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
