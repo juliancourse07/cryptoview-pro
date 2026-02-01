@@ -29,7 +29,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # Session State
 if 'collector' not in st.session_state:
-    st.session_state.collector = CryptoDataCollector('binance')
+    st.session_state.collector = CryptoDataCollector('kraken')
 
 if 'data' not in st.session_state:
     st.session_state.data = pd.DataFrame()
@@ -86,7 +86,7 @@ with st.sidebar:
 @st.cache_data(ttl=60, show_spinner=False)
 def load_crypto_data(symbol, timeframe, limit):
     """Carga datos con caché"""
-    collector = CryptoDataCollector('binance')
+    collector = CryptoDataCollector('kraken')
     df = collector.fetch_ohlcv(symbol, timeframe, limit)
     
     if not df.empty:
