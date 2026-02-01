@@ -1,0 +1,190 @@
+"""
+Modelo Prophet para predicciones de largo plazo en criptomonedas
+Optimizado para 1 semana - 1 mes
+"""
+import pandas as pd
+import numpy as np
+from typing import Dict, Tuple
+import warnings
+warnings.filterwarnings('ignore')
+
+try:
+    from prophet import Prophet
+    PROPHET_AVAILABLE = True
+except ImportError:
+    PROPHET_AVAILABLE = False
+
+class ProphetCryptoPredictor:
+    """
+    Predictor de criptomonedas usando Prophet (Meta/Facebook)
+    Especializado en tendencias a mediano/largo plazo
+    """
+    
+    def __init__(self, 
+                 changepoint_prior_scale: float = 0.5,
+                 seasonality_prior_scale: float = 10,
+                 interval_width: float = 0.95):
+        """
+        Inicializa Prophet con configuración optimizada para crypto
+        
+        Args:
+            changepoint_prior_scale: Flexibilidad para cambios de tendencia (0.001-0.5)
+                - Más alto = más flexible (mejor para crypto volátil)
+            seasonality_prior_scale: Fuerza de estacionalidad (1-20)
+                - Más alto = más estacional
+            interval_width: Ancho de intervalos de confianza (0.8-0.95)
+        """
+        if not PROPHET_AVAILABLE:
+            raise ImportError("Prophet no está instalado. Ejecuta: pip install prophet")
+        
+        self.model = Prophet(
+            changepoint_prior_scale=changepoint_prior_scale,
+            seasonality_prior_scale=seasonality_prior_scale,
+            interval_width=interval_width,
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=False,
+            seasonality_mode='multiplicative'
+        )
+        
+        self.trained = False
+        self.last_train_date = None
+    
+    def prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Prepara datos en formato Prophet (ds, y)
+        
+        Args:
+            df: DataFrame con columna 'close' e índice datetime
+            
+        Returns:
+            DataFrame con columnas 'ds' (fecha) y 'y' (precio)
+        """
+        prophet_df = pd.DataFrame({
+            'ds': df.index,
+            'y': df['close'].values
+        })
+        
+        prophet_df = prophet_df.dropna()
+        
+        return prophet_df
+    
+    def train(self, df: pd.DataFrame) -> Dict:
+        """
+        Entrena el modelo Prophet
+        
+        Args:
+            df: DataFrame con datos históricos
+            
+        Returns:
+            Diccionario con métricas de entrenamiento
+        """
+        try:
+            prophet_df = self.prepare_data(df)
+            
+            if len(prophet_df) < 100:
+                raise ValueError(f"No hay suficientes datos. Mínimo 100, tienes {len(prophet_df)}")
+            
+            self.model.fit(prophet_df)
+            self.trained = True
+            self.last_train_date = prophet_df['ds'].iloc[-1]
+            
+            forecast = self.model.predict(prophet_df)
+            
+            actual = prophet_df['y'].values
+            predicted = forecast['yhat'].values
+            
+            mae = np.mean(np.abs(actual - predicted))
+            rmse = np.sqrt(np.mean((actual - predicted) ** 2))
+            mape = np.mean(np.abs((actual - predicted) / actual)) * 100
+            
+            actual_direction = np.sign(np.diff(actual))
+            pred_direction = np.sign(np.diff(predicted))
+            direction_accuracy = np.mean(actual_direction == pred_direction) * 100
+            
+            return {
+                'mae': mae,
+                'rmse': rmse,
+                'mape': mape,
+                'direction_accuracy': direction_accuracy,
+                'training_points': len(prophet_df)
+            }
+            
+        except Exception as e:
+            raise Exception(f"Error entrenando Prophet: {str(e)}")
+    
+    def predict_future(self, periods: int, freq: str = 'H') -> pd.DataFrame:
+        """
+        Predice precios futuros
+        
+        Args:
+            periods: Número de períodos a predecir
+            freq: Frecuencia ('H'=hora, 'D'=día)
+            
+        Returns:
+            DataFrame con predicciones e intervalos de confianza
+        """
+        if not self.trained:
+            raise ValueError("El modelo debe ser entrenado primero")
+        
+        future = self.model.make_future_dataframe(periods=periods, freq=freq)
+        forecast = self.model.predict(future)
+        forecast_future = forecast[forecast['ds'] > self.last_train_date].copy()
+        
+        predictions = pd.DataFrame({
+            'timestamp': forecast_future['ds'],
+            'predicted_price': forecast_future['yhat'],
+            'lower_bound': forecast_future['yhat_lower'],
+            'upper_bound': forecast_future['yhat_upper'],
+            'trend': forecast_future['trend']
+        })
+        
+        predictions.set_index('timestamp', inplace=True)
+        
+        return predictions
+
+
+def backtest_prophet(df: pd.DataFrame, 
+                     predictor: ProphetCryptoPredictor,
+                     test_periods: int = 168) -> Dict:
+    """
+    Realiza backtesting del modelo Prophet
+    
+    Args:
+        df: DataFrame con datos históricos
+        predictor: Instancia de ProphetCryptoPredictor
+        test_periods: Períodos a usar para testing (default 168 = 1 semana)
+        
+    Returns:
+        Diccionario con resultados del backtesting
+    """
+    train_df = df.iloc[:-test_periods]
+    test_df = df.iloc[-test_periods:]
+    
+    train_metrics = predictor.train(train_df)
+    predictions = predictor.predict_future(periods=test_periods, freq='H')
+    
+    actual = test_df['close'].values
+    predicted = predictions['predicted_price'].values[:len(actual)]
+    
+    mae = np.mean(np.abs(actual - predicted))
+    rmse = np.sqrt(np.mean((actual - predicted) ** 2))
+    mape = np.mean(np.abs((actual - predicted) / actual)) * 100
+    
+    actual_direction = np.sign(np.diff(actual))
+    pred_direction = np.sign(np.diff(predicted))
+    direction_accuracy = np.mean(actual_direction == pred_direction) * 100
+    
+    return {
+        'train_metrics': train_metrics,
+        'test_metrics': {
+            'mae': mae,
+            'rmse': rmse,
+            'mape': mape,
+            'direction_accuracy': direction_accuracy
+        },
+        'train_actual': train_df['close'].values,
+        'test_actual': actual,
+        'test_predicted': predicted,
+        'predictions': predictions
+    }
