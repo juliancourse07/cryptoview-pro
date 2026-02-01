@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from datetime import datetime
+from datetime import datetime, timezone
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -21,7 +21,7 @@ from utils.backtesting import Backtester
 
 # Imports de modelos ML
 try:
-    from models.xgboost_model import XGBoostCryptoPredictor, backtest_model
+    from models.xgboost_model import XGBoostCryptoPredictor, backtest_model, create_prediction_intervals
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -104,16 +104,23 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📊 Configuración de Datos")
     
-    # CANTIDAD DE DATOS
+    # CANTIDAD DE DATOS - AUMENTADO A 1500
     st.caption("💾 Cantidad de puntos históricos. Más datos = análisis más completo")
     data_limit = st.number_input(
         "Puntos de datos:",
-        min_value=200,
+        min_value=500,
         max_value=2000,
-        value=1000,
+        value=1500,  # ✅ 1500 puntos = ~60 días con timeframe 1h
         step=100,
         label_visibility="collapsed"
     )
+    
+    # Info dinámica sobre cuánto tiempo representa
+    timeframe_hours = {'1m': 1/60, '5m': 5/60, '15m': 15/60, '1h': 1, '4h': 4, '1d': 24}
+    if timeframe in timeframe_hours:
+        days_covered = int(data_limit * timeframe_hours[timeframe] / 24)
+        if days_covered > 0:
+            st.caption(f"📊 Cargando ~{days_covered} días de datos históricos")
     
     # MOSTRAR VOLUMEN
     show_volume = st.checkbox("📈 Mostrar volumen de transacciones", value=True)
@@ -289,16 +296,14 @@ def create_main_chart(df, show_volume=True):
 def create_prediction_chart(df, predictions_df, show_confidence=True):
     """
     Crea gráfico de predicciones con bandas de confianza
-    
-    Args:
-        df: DataFrame histórico
-        predictions_df: DataFrame con predicciones
-        show_confidence: Mostrar bandas de confianza
+    MEJORADO: Más contexto histórico y anotaciones con fecha/hora
     """
     fig = go.Figure()
     
-    # Datos históricos (últimos 168 puntos para contexto)
-    historical_data = df.tail(168)
+    # Datos históricos - Usar más contexto (últimos 14 días = 336h con 1h timeframe)
+    # Ajusta automáticamente según datos disponibles
+    context_points = min(336, len(df))
+    historical_data = df.tail(context_points)
     
     fig.add_trace(
         go.Scatter(
@@ -307,7 +312,7 @@ def create_prediction_chart(df, predictions_df, show_confidence=True):
             mode='lines',
             name='Precio Histórico',
             line=dict(color=COLORS['accent'], width=2),
-            hovertemplate='<b>Histórico</b><br>Precio: $%{y:,.2f}<br>%{x}<extra></extra>'
+            hovertemplate='<b>Histórico</b><br>Precio: $%{y:,.2f}<br>Fecha: %{x}<extra></extra>'
         )
     )
     
@@ -320,7 +325,7 @@ def create_prediction_chart(df, predictions_df, show_confidence=True):
             name='Predicción ML',
             line=dict(color=COLORS['forecast'], width=3, dash='dash'),
             marker=dict(size=6, symbol='diamond'),
-            hovertemplate='<b>Predicción</b><br>Precio: $%{y:,.2f}<br>%{x}<extra></extra>'
+            hovertemplate='<b>Predicción</b><br>Precio: $%{y:,.2f}<br>Fecha: %{x}<extra></extra>'
         )
     )
     
@@ -356,17 +361,58 @@ def create_prediction_chart(df, predictions_df, show_confidence=True):
     
     # Línea vertical separando histórico de predicción
     if len(df) > 0:
-        fig.add_vline(
-            x=df.index[-1],
-            line_dash="dot",
-            line_color="white",
-            opacity=0.5,
-            annotation_text="Ahora",
-            annotation_position="top"
+        last_timestamp = df.index[-1]
+        last_price = df['close'].iloc[-1]
+        
+        fig.add_shape(
+            type="line",
+            x0=last_timestamp,
+            x1=last_timestamp,
+            y0=0,
+            y1=1,
+            yref='paper',
+            line=dict(color="white", width=2, dash="dot"),
+            opacity=0.7
+        )
+        
+        # Anotación con fecha y hora
+        fig.add_annotation(
+            x=last_timestamp,
+            y=1.02,
+            yref='paper',
+            text=f"⏰ Ahora: {last_timestamp.strftime('%Y-%m-%d %H:%M')}",
+            showarrow=False,
+            font=dict(color="white", size=11, family="monospace"),
+            bgcolor="rgba(0, 0, 0, 0.6)",
+            bordercolor="white",
+            borderwidth=1,
+            borderpad=4
+        )
+        
+        # Anotación con precio actual
+        fig.add_annotation(
+            x=last_timestamp,
+            y=last_price,
+            text=f"💰 ${last_price:,.2f}",
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=1,
+            arrowwidth=2,
+            arrowcolor="white",
+            ax=40,
+            ay=0,
+            font=dict(color="white", size=12, family="monospace"),
+            bgcolor="rgba(0, 217, 255, 0.8)",
+            bordercolor="white",
+            borderwidth=1,
+            borderpad=4
         )
     
+    # Calcular días de contexto mostrados
+    days_shown = int(context_points / 24) if context_points >= 24 else 1
+    
     fig.update_layout(
-        title=f"🔮 Predicción de {crypto_symbol} - Próximas {len(predictions_df)} horas",
+        title=f"🔮 Predicción de {crypto_symbol} - Próximas {len(predictions_df)} horas (Contexto: {days_shown} días)",
         xaxis_title="Fecha y Hora",
         yaxis_title="Precio (USDT)",
         hovermode='x unified',
@@ -387,8 +433,10 @@ def create_prediction_chart(df, predictions_df, show_confidence=True):
         rangeslider_visible=False,
         rangeselector=dict(
             buttons=list([
+                dict(count=6, label="6H", step="hour", stepmode="backward"),
                 dict(count=24, label="24H", step="hour", stepmode="backward"),
                 dict(count=7, label="7D", step="day", stepmode="backward"),
+                dict(count=14, label="14D", step="day", stepmode="backward"),
                 dict(step="all", label="Todo")
             ]),
             bgcolor='rgba(150, 150, 150, 0.1)',
@@ -520,12 +568,41 @@ st.markdown("### 📊 Métricas Principales")
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
+    # Obtener fecha y hora del último dato - MEJORADO
+    last_update_time = df.index[-1]
+    last_update_str = last_update_time.strftime('%Y-%m-%d')
+    last_update_hour = last_update_time.strftime('%H:%M:%S')
+    
+    # Calcular hace cuánto fue
+    now = datetime.now(timezone.utc)
+    if last_update_time.tzinfo is None:
+        # Si no tiene timezone, asumir UTC
+        time_diff = now.replace(tzinfo=None) - last_update_time
+    else:
+        time_diff = now - last_update_time
+    
+    minutes_ago = int(time_diff.total_seconds() / 60)
+    
+    if minutes_ago < 1:
+        time_ago_str = "Hace menos de 1 minuto"
+    elif minutes_ago < 60:
+        time_ago_str = f"Hace {minutes_ago} minutos"
+    else:
+        hours_ago = int(minutes_ago / 60)
+        time_ago_str = f"Hace {hours_ago} horas"
+    
     st.markdown(f"""
     <div class='metric-card'>
         <div style='font-size: 14px; color: #9CA3AF;'>💰 Precio Actual</div>
         <div class='big-metric'>${current_price:,.2f}</div>
-        <div style='font-size: 11px; color: #6B7280; margin-top: 4px;'>
-            Último precio registrado
+        <div style='font-size: 11px; color: #00D9FF; margin-top: 4px; font-weight: 600;'>
+            📅 {last_update_str}
+        </div>
+        <div style='font-size: 11px; color: #9CA3AF; margin-top: 2px;'>
+            🕐 {last_update_hour}
+        </div>
+        <div style='font-size: 10px; color: #6B7280; margin-top: 4px;'>
+            ⏱️ {time_ago_str}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -708,6 +785,44 @@ if ML_AVAILABLE:
                     - Combina con análisis técnico
                     - Siempre gestiona tu riesgo
                     """)
+                
+                # Información sobre datos usados - NUEVO
+                with st.expander("📊 ¿Cuántos datos históricos usa el modelo?"):
+                    timeframe_hours_map = {'1m': 1/60, '5m': 5/60, '15m': 15/60, '1h': 1, '4h': 4, '1d': 24}
+                    hours_per_point = timeframe_hours_map.get(timeframe, 1)
+                    total_days = int(data_limit * hours_per_point / 24)
+                    train_days = int(data_limit * 0.8 * hours_per_point / 24)
+                    test_days = int(data_limit * 0.2 * hours_per_point / 24)
+                    
+                    st.markdown(f"""
+                    ### 📅 Datos Utilizados para Entrenar
+                    
+                    **Configuración actual:**
+                    - **Puntos de datos:** {data_limit} velas
+                    - **Timeframe:** {timeframe} ({TIMEFRAMES[timeframe]})
+                    - **Período histórico:** ~{total_days} días
+                    
+                    **División de datos:**
+                    - 🎓 **Entrenamiento (80%):** {int(data_limit * 0.8)} puntos ≈ {train_days} días
+                    - ✅ **Validación (20%):** {int(data_limit * 0.2)} puntos ≈ {test_days} días
+                    
+                    **¿Es suficiente?**
+                    
+                    Para criptomonedas con timeframe de 1h:
+                    - ✅ **500-1000 puntos:** Bueno (20-40 días)
+                    - ✅ **1000-1500 puntos:** Óptimo (40-60 días)
+                    - ✅ **1500-2000 puntos:** Excelente (60-80 días) ← **Estás aquí**
+                    - ⚠️ **>2000 puntos:** Puede incluir condiciones muy diferentes
+                    
+                    **💡 Tip:** 
+                    - Para corto plazo: 1000-1500 puntos con 1h es ideal
+                    - Para largo plazo: 1500-2000 o usa timeframe 4h
+                    - Más datos NO siempre = mejor (el mercado cambia)
+                    
+                    **📈 Contexto en gráficos:**
+                    - Gráfico de predicciones muestra últimos 14 días de contexto
+                    - Permite ver la tendencia reciente antes de la predicción
+                    """)
             
             with col_ml2:
                 if st.button("🎯 Entrenar Modelo y Predecir", use_container_width=True, type="primary"):
@@ -731,7 +846,6 @@ if ML_AVAILABLE:
                                 )
                                 
                                 # Agregar intervalos de confianza
-                                from models.xgboost_model import create_prediction_intervals
                                 predictions = create_prediction_intervals(predictions)
                                 
                                 st.session_state.predictions = predictions
@@ -797,7 +911,7 @@ if ML_AVAILABLE:
                 # Tabla de predicciones
                 with st.expander("📋 Ver tabla completa de predicciones"):
                     display_pred = pred_df.copy()
-                    display_pred['Fecha y Hora'] = display_pred.index
+                    display_pred['Fecha y Hora'] = display_pred.index.strftime('%Y-%m-%d %H:%M')
                     display_pred['Precio Predicho'] = display_pred['predicted_price'].apply(lambda x: f"${x:,.2f}")
                     
                     if 'lower_bound' in display_pred.columns:
