@@ -5,4 +5,6 @@ numpy
 plotly
 python-dotenv
 scikit-learn
+xgboost
 joblib
+scipy
