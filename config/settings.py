@@ -1,3 +1,6 @@
+"""
+Configuración global del sistema
+"""
 import os
 from dotenv import load_dotenv
 from typing import List, Dict
@@ -93,51 +96,51 @@ COLORS = {
     'forecast': '#ffd700'
 }
 
+# CSS SIMPLIFICADO Y SEGURO
 CUSTOM_CSS = """
 <style>
-:root {
-    --bg: #071428;
-    --fg: #f8fafc;
-    --accent: #00d9ff;
-    --success: #00ff88;
-    --warning: #ffaa00;
-    --danger: #ff4444;
-}
-
-.metric-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 12px;
-    padding: 16px;
-    margin: 8px 0;
-}
-
-.big-metric {
-    font-size: 32px;
-    font-weight: 800;
-    color: var(--accent);
-}
-
-.positive { color: var(--success) !important; }
-.negative { color: var(--danger) !important; }
-.neutral { color: var(--warning) !important; }
-
-.prediction-box {
-    background: linear-gradient(135deg, rgba(0,217,255,0.1), rgba(255,215,0,0.1));
-    border: 2px solid rgba(255,215,0,0.3);
-    border-radius: 16px;
-    padding: 20px;
-    margin: 16px 0;
-}
-
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-}
-
-.stTabs [data-baseweb="tab"] {
-    background-color: rgba(255,255,255,0.05);
-    border-radius: 8px;
-    padding: 8px 16px;
-}
+    .metric-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 16px;
+        margin: 8px 0;
+    }
+    
+    .big-metric {
+        font-size: 32px;
+        font-weight: 800;
+        color: #00d9ff;
+    }
+    
+    .positive {
+        color: #00ff88 !important;
+    }
+    
+    .negative {
+        color: #ff4444 !important;
+    }
+    
+    .neutral {
+        color: #ffaa00 !important;
+    }
+    
+    /* Mejoras visuales sutiles */
+    .stMetric {
+        background: rgba(255, 255, 255, 0.02);
+        padding: 10px;
+        border-radius: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab-list"] button {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 8px 16px;
+        margin: 0 4px;
+    }
+    
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+        background-color: rgba(0, 217, 255, 0.2);
+    }
 </style>
 """
