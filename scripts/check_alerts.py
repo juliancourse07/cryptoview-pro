@@ -1,6 +1,12 @@
 """
-🔔 Sistema Automático de Alertas para CryptoView Pro
+🔔 Sistema Automático de Alertas Inteligentes para CryptoView Pro
 Ejecutado por GitHub Actions cada hora
+
+Detecta:
+- Rupturas de soporte (mínimo mensual quebrado)
+- Rupturas de resistencia (máximo mensual superado)
+- RSI extremo
+- Cambios bruscos en 24h
 
 Developed by Julian E. Coronado Gil - Data Scientist
 """
@@ -58,7 +64,7 @@ def send_telegram(message: str, parse_mode: str = 'Markdown') -> bool:
 
 def send_alert_notification(alert: dict, current_price: float) -> bool:
     """
-    Envía notificación formateada de alerta
+    Envía notificación formateada de alerta básica (precio, RSI)
     
     Args:
         alert: Diccionario con configuración de alerta
@@ -99,6 +105,100 @@ _CryptoView Pro by Julian E. Coronado Gil_
     return send_telegram(message)
 
 
+def send_support_break_alert(crypto: str, monthly_data: dict) -> bool:
+    """
+    Envía alerta cuando se rompe el soporte (mínimo mensual)
+    
+    Args:
+        crypto: Símbolo
+        monthly_data: Datos del mínimo mensual
+        
+    Returns:
+        True si envió
+    """
+    message = f"""
+🔴 *SOPORTE ROTO - ALERTA CRÍTICA*
+
+💰 *{crypto}*
+
+⚠️ *El precio ha caído por debajo del mínimo mensual*
+
+📉 *Mínimo del último mes:*
+${monthly_data['low']:,.2f}
+📅 Fecha: {monthly_data['date'].strftime('%Y-%m-%d')}
+
+📊 *Precio Actual:*
+${monthly_data['current']:,.2f}
+
+💔 *Caída desde mínimo:*
+{monthly_data['pct_from_low']:.2f}%
+
+⚠️ *Implicaciones:*
+• Soporte técnico quebrado
+• Posible tendencia bajista
+• Alto riesgo de más caídas
+
+🛡️ *Estrategia sugerida:*
+• Stop-loss si estás en largo
+• Esperar confirmación de rebote
+• Considerar entradas escalonadas
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_Alerta automática - CryptoView Pro_
+_by Julian E. Coronado Gil_
+"""
+    
+    return send_telegram(message)
+
+
+def send_resistance_break_alert(crypto: str, monthly_data: dict) -> bool:
+    """
+    Envía alerta cuando se rompe la resistencia (máximo mensual)
+    
+    Args:
+        crypto: Símbolo
+        monthly_data: Datos del máximo mensual
+        
+    Returns:
+        True si envió
+    """
+    message = f"""
+🟢 *RESISTENCIA ROTA - BREAKOUT*
+
+💰 *{crypto}*
+
+🚀 *El precio ha superado el máximo mensual*
+
+📈 *Máximo del último mes:*
+${monthly_data['high']:,.2f}
+📅 Fecha: {monthly_data['date'].strftime('%Y-%m-%d')}
+
+📊 *Precio Actual:*
+${monthly_data['current']:,.2f}
+
+💚 *Ganancia desde máximo:*
+{monthly_data['pct_from_high']:+.2f}%
+
+✨ *Implicaciones:*
+• Resistencia técnica quebrada
+• Posible tendencia alcista fuerte
+• Momentum positivo
+
+🎯 *Estrategia sugerida:*
+• Posible entrada en pullback
+• Trailing stop recomendado
+• Tomar parciales en niveles clave
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_Alerta automática - CryptoView Pro_
+_by Julian E. Coronado Gil_
+"""
+    
+    return send_telegram(message)
+
+
 # ============ FUNCIONES DE PRECIO ============
 
 def get_current_price(symbol: str, exchange_name: str = 'kraken') -> float:
@@ -130,6 +230,114 @@ def get_current_price(symbol: str, exchange_name: str = 'kraken') -> float:
         
     except Exception as e:
         print(f"❌ Error obteniendo precio de {symbol}: {e}")
+        return None
+
+
+def get_monthly_low(symbol: str, exchange_name: str = 'kraken') -> dict:
+    """
+    Obtiene el mínimo de los últimos 30 días
+    
+    Args:
+        symbol: Par de crypto (ej: 'BTC/USDT')
+        exchange_name: Exchange a usar
+        
+    Returns:
+        Dict con {low, date, current_price, percentage_from_low, is_below}
+    """
+    try:
+        if exchange_name.lower() == 'kraken':
+            exchange = ccxt.kraken()
+        elif exchange_name.lower() == 'binance':
+            exchange = ccxt.binance()
+        else:
+            exchange = ccxt.kraken()
+        
+        # Obtener 30 días de datos (1 día por vela)
+        ohlcv = exchange.fetch_ohlcv(symbol, '1d', limit=30)
+        
+        # Encontrar mínimo
+        lows = [candle[3] for candle in ohlcv]  # index 3 = low
+        dates = [candle[0] for candle in ohlcv]  # index 0 = timestamp
+        
+        min_price = min(lows)
+        min_index = lows.index(min_price)
+        min_date = datetime.fromtimestamp(dates[min_index] / 1000)
+        
+        # Precio actual
+        current = get_current_price(symbol, exchange_name)
+        
+        # Calcular porcentaje desde el mínimo
+        if current:
+            pct_from_low = ((current - min_price) / min_price) * 100
+        else:
+            pct_from_low = 0
+        
+        result = {
+            'low': min_price,
+            'date': min_date,
+            'current': current,
+            'pct_from_low': pct_from_low,
+            'is_below': current < min_price if current else False
+        }
+        
+        print(f"📉 Mínimo 30d de {symbol}: ${min_price:,.2f} ({min_date.strftime('%Y-%m-%d')})")
+        print(f"   Actual: ${current:,.2f} ({pct_from_low:+.2f}% desde mínimo)")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error obteniendo mínimo mensual de {symbol}: {e}")
+        return None
+
+
+def get_monthly_high(symbol: str, exchange_name: str = 'kraken') -> dict:
+    """
+    Obtiene el máximo de los últimos 30 días
+    
+    Args:
+        symbol: Par de crypto
+        exchange_name: Exchange
+        
+    Returns:
+        Dict con información del máximo
+    """
+    try:
+        if exchange_name.lower() == 'kraken':
+            exchange = ccxt.kraken()
+        else:
+            exchange = ccxt.binance()
+        
+        ohlcv = exchange.fetch_ohlcv(symbol, '1d', limit=30)
+        
+        highs = [candle[2] for candle in ohlcv]  # index 2 = high
+        dates = [candle[0] for candle in ohlcv]
+        
+        max_price = max(highs)
+        max_index = highs.index(max_price)
+        max_date = datetime.fromtimestamp(dates[max_index] / 1000)
+        
+        current = get_current_price(symbol, exchange_name)
+        
+        if current:
+            pct_from_high = ((current - max_price) / max_price) * 100
+        else:
+            pct_from_high = 0
+        
+        result = {
+            'high': max_price,
+            'date': max_date,
+            'current': current,
+            'pct_from_high': pct_from_high,
+            'is_above': current > max_price if current else False
+        }
+        
+        print(f"📈 Máximo 30d de {symbol}: ${max_price:,.2f} ({max_date.strftime('%Y-%m-%d')})")
+        print(f"   Actual: ${current:,.2f} ({pct_from_high:+.2f}% desde máximo)")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error obteniendo máximo mensual: {e}")
         return None
 
 
@@ -173,6 +381,51 @@ def calculate_rsi(symbol: str, period: int = 14) -> float:
         return None
 
 
+def calculate_24h_change(symbol: str, exchange_name: str = 'kraken') -> dict:
+    """
+    Calcula el cambio porcentual en 24 horas
+    
+    Args:
+        symbol: Par de crypto
+        exchange_name: Exchange
+        
+    Returns:
+        Dict con información del cambio
+    """
+    try:
+        if exchange_name.lower() == 'kraken':
+            exchange = ccxt.kraken()
+        else:
+            exchange = ccxt.binance()
+        
+        ohlcv = exchange.fetch_ohlcv(symbol, '1h', limit=25)
+        
+        price_24h_ago = ohlcv[-25][4]  # Cierre de hace 24h
+        current = get_current_price(symbol, exchange_name)
+        
+        if current:
+            change_pct = ((current - price_24h_ago) / price_24h_ago) * 100
+            change_abs = current - price_24h_ago
+        else:
+            change_pct = 0
+            change_abs = 0
+        
+        result = {
+            'price_24h_ago': price_24h_ago,
+            'current': current,
+            'change_pct': change_pct,
+            'change_abs': change_abs
+        }
+        
+        print(f"📊 Cambio 24h de {symbol}: {change_pct:+.2f}%")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error calculando cambio 24h: {e}")
+        return None
+
+
 # ============ FUNCIONES DE ALERTAS ============
 
 def load_alerts() -> list:
@@ -197,7 +450,7 @@ def load_alerts() -> list:
 
 def check_alert(alert: dict) -> bool:
     """
-    Verifica si se cumple una alerta
+    Verifica alertas básicas (precio, RSI)
     
     Args:
         alert: Diccionario con configuración de alerta
@@ -244,6 +497,87 @@ def check_alert(alert: dict) -> bool:
         return False
 
 
+def check_smart_alert(alert: dict) -> bool:
+    """
+    Verifica alertas inteligentes (mínimo/máximo mensual, cambios 24h)
+    
+    Args:
+        alert: Diccionario con configuración
+        
+    Returns:
+        True si se activó
+    """
+    if not alert.get('enabled', False):
+        print(f"⏭️  Alerta deshabilitada: {alert.get('crypto')}")
+        return False
+    
+    crypto = alert['crypto']
+    alert_type = alert['type']
+    
+    print(f"\n🔍 Revisando alerta inteligente: {crypto} - {alert_type}")
+    
+    if alert_type == 'minimo_mensual':
+        monthly_data = get_monthly_low(crypto, alert.get('exchange', 'kraken'))
+        
+        if monthly_data and monthly_data['is_below']:
+            print(f"🔴 ¡SOPORTE ROTO! {crypto} cayó bajo mínimo mensual")
+            return send_support_break_alert(crypto, monthly_data)
+        else:
+            print(f"✓ Soporte intacto")
+    
+    elif alert_type == 'maximo_mensual':
+        monthly_data = get_monthly_high(crypto, alert.get('exchange', 'kraken'))
+        
+        if monthly_data and monthly_data['is_above']:
+            print(f"🟢 ¡RESISTENCIA ROTA! {crypto} superó máximo mensual")
+            return send_resistance_break_alert(crypto, monthly_data)
+        else:
+            print(f"✓ Resistencia intacta")
+    
+    elif alert_type == 'cambio_24h':
+        change_data = calculate_24h_change(crypto, alert.get('exchange', 'kraken'))
+        
+        if change_data:
+            change_pct = change_data['change_pct']
+            threshold = alert['threshold']
+            
+            if abs(change_pct) > threshold:
+                emoji = "🚀" if change_pct > 0 else "💥"
+                direction = "subió" if change_pct > 0 else "cayó"
+                
+                message = f"""
+{emoji} *CAMBIO EXTREMO 24H - ALERTA CRÍTICA*
+
+💰 *{crypto}*
+
+📊 *Cambio en 24h:* {change_pct:+.2f}%
+💵 Diferencia: ${change_data['change_abs']:+,.2f}
+
+📉 Hace 24h: ${change_data['price_24h_ago']:,.2f}
+📈 Ahora: ${change_data['current']:,.2f}
+
+⚠️ *Volatilidad extrema detectada*
+
+El precio {direction} {abs(change_pct):.1f}% en las últimas 24 horas.
+
+🎯 *Implicaciones:*
+• Alta volatilidad
+• Posible continuación del movimiento
+• Revisar volumen y noticias
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_CryptoView Pro by Julian E. Coronado Gil_
+"""
+                send_telegram(message)
+                print(f"🔔 ¡ALERTA ACTIVADA! Cambio extremo: {change_pct:+.2f}%")
+                return True
+            else:
+                print(f"✓ Cambio normal: {change_pct:+.2f}% (umbral: {threshold}%)")
+    
+    return False
+
+
 # ============ FUNCIÓN PRINCIPAL ============
 
 def main():
@@ -251,7 +585,7 @@ def main():
     Función principal que ejecuta la revisión de alertas
     """
     print("=" * 60)
-    print("🔔 CRYPTOVIEW PRO - SISTEMA DE ALERTAS AUTOMÁTICO")
+    print("🔔 CRYPTOVIEW PRO - SISTEMA DE ALERTAS INTELIGENTES")
     print("=" * 60)
     print(f"⏰ Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"👨‍💻 Developed by Julian E. Coronado Gil")
@@ -273,7 +607,6 @@ def main():
         print("\n⚠️ No hay alertas configuradas")
         print(f"Crea alertas en: {ALERTS_FILE}")
         
-        # Enviar notificación de que no hay alertas
         send_telegram(
             "⚠️ *Sistema de Alertas Activo*\n\n"
             "No hay alertas configuradas.\n"
@@ -289,24 +622,40 @@ def main():
     enabled_count = sum(1 for a in alerts if a.get('enabled', False))
     
     for i, alert in enumerate(alerts, 1):
-        print(f"\n--- Alerta {i}/{len(alerts)} ---")
-        if check_alert(alert):
-            triggered_count += 1
+        print(f"\n{'=' * 50}")
+        print(f"Alerta {i}/{len(alerts)}")
+        print(f"{'=' * 50}")
+        
+        # Detectar tipo de alerta
+        alert_type = alert.get('type')
+        
+        if alert_type in ['minimo_mensual', 'maximo_mensual', 'cambio_24h']:
+            # Alertas inteligentes
+            if check_smart_alert(alert):
+                triggered_count += 1
+        elif alert_type in ['precio', 'rsi']:
+            # Alertas normales
+            if check_alert(alert):
+                triggered_count += 1
+        else:
+            print(f"⚠️ Tipo de alerta desconocido: {alert_type}")
     
     # Resumen
     print("\n" + "=" * 60)
-    print(f"✅ Revisión completada")
-    print(f"📊 Alertas revisadas: {enabled_count}/{len(alerts)}")
+    print(f"✅ REVISIÓN COMPLETADA")
+    print("=" * 60)
+    print(f"📊 Alertas habilitadas: {enabled_count}/{len(alerts)}")
     print(f"🔔 Alertas activadas: {triggered_count}")
+    print(f"⏰ Finalizado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
     
-    # Enviar resumen si no se activó ninguna (opcional)
+    # Enviar resumen si no se activó ninguna
     if triggered_count == 0 and enabled_count > 0:
         send_telegram(
-            f"✅ *Sistema de Alertas - Revisión Completada*\n\n"
-            f"📊 Alertas activas: {enabled_count}\n"
+            f"✅ *Sistema de Alertas - Todo en Orden*\n\n"
+            f"📊 Alertas monitoreadas: {enabled_count}\n"
             f"🔔 Alertas activadas: 0\n\n"
-            f"Todo en orden 👍\n\n"
+            f"Todos los niveles bajo control 👍\n\n"
             f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
 
@@ -316,6 +665,8 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print(f"\n❌ ERROR CRÍTICO: {e}")
+        import traceback
+        traceback.print_exc()
         
         # Enviar error a Telegram
         if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
