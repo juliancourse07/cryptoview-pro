@@ -54,10 +54,10 @@ MODELS_CONFIG = {
 }
 
 # ============ FORECAST SETTINGS ============
-FORECAST_HOURS = int(os.getenv('FORECAST_HOURS', 24))
+FORECAST_HOURS = int(os.getenv('FORECAST_HOURS', 168))
 AUTO_REFRESH_SECONDS = int(os.getenv('AUTO_REFRESH_SECONDS', 30))
 CACHE_TTL = 60
-DATA_LIMIT = 2000  # Aumentado para mejor entrenamiento
+DATA_LIMIT = 2000
 MIN_DATA_POINTS = 500
 
 # ============ TECHNICAL INDICATORS ============
@@ -71,7 +71,7 @@ INDICATORS_CONFIG = {
     'ema_periods': [9, 21, 50, 200]
 }
 
-# ============ ALERTS SETTINGS ============
+# ============ TELEGRAM SETTINGS ============
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 
