@@ -12,7 +12,7 @@ from config.settings import BINANCE_API_KEY, BINANCE_API_SECRET, CACHE_TTL
 class CryptoDataCollector:
     """Recolecta datos de criptomonedas desde exchanges"""
     
-    def __init__(self, exchange_name: str = 'binance'):
+    def __init__(self, exchange_name: str = 'kraken'):
         self.exchange_name = exchange_name
         self.exchange = self._initialize_exchange()
         
@@ -90,7 +90,7 @@ class CryptoDataCollector:
             st.error(f"❌ Error obteniendo estadísticas: {e}")
             return {}
 
-def test_connection(exchange_name: str = 'binance') -> bool:
+def test_connection(exchange_name: str = 'kraken') -> bool:
     """Prueba la conexión con el exchange"""
     try:
         collector = CryptoDataCollector(exchange_name)
