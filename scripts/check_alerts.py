@@ -1,12 +1,6 @@
 """
-🔔 Sistema Automático de Alertas Inteligentes para CryptoView Pro
-Ejecutado por GitHub Actions cada hora
-
-Detecta:
-- Rupturas de soporte (mínimo mensual quebrado)
-- Rupturas de resistencia (máximo mensual superado)
-- RSI extremo
-- Cambios bruscos en 24h
+🔔 Sistema de Alertas Inteligentes - CryptoView Pro
+Top 10 Cryptos - Análisis Semanal - Alertas Avanzadas Nivel 2
 
 Developed by Julian E. Coronado Gil - Data Scientist
 """
@@ -21,344 +15,137 @@ from pathlib import Path
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-# Cargar alertas desde archivo JSON
+# Top 10 cryptos por capitalización
+TOP_CRYPTOS = [
+    'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT',
+    'ADA/USDT', 'AVAX/USDT', 'DOGE/USDT', 'DOT/USDT', 'MATIC/USDT'
+]
+
+# Niveles psicológicos
+PSYCHOLOGICAL_LEVELS = {
+    'BTC/USDT': [100000, 90000, 80000, 75000, 70000, 60000, 50000],
+    'ETH/USDT': [5000, 4000, 3500, 3000, 2500, 2000],
+    'BNB/USDT': [700, 600, 500, 400, 300],
+    'SOL/USDT': [200, 150, 100, 75, 50],
+    'XRP/USDT': [3, 2.5, 2, 1.5, 1],
+}
+
 ALERTS_FILE = Path(__file__).parent / 'alerts_config.json'
 
-# ============ FUNCIONES DE TELEGRAM ============
+# ============ TELEGRAM ============
 
-def send_telegram(message: str, parse_mode: str = 'Markdown') -> bool:
-    """
-    Envía mensaje a Telegram
-    
-    Args:
-        message: Texto del mensaje
-        parse_mode: 'Markdown' o 'HTML'
-        
-    Returns:
-        True si se envió exitosamente
-    """
+def send_telegram(message: str) -> bool:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("❌ Error: TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados")
         return False
     
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": parse_mode
-    }
+    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     
     try:
         response = requests.post(url, data=data, timeout=10)
-        if response.status_code == 200:
-            print(f"✅ Mensaje enviado a Telegram")
-            return True
-        else:
-            print(f"❌ Error al enviar: {response.status_code}")
-            print(response.text)
-            return False
-    except Exception as e:
-        print(f"❌ Error de conexión: {e}")
+        return response.status_code == 200
+    except:
         return False
 
+# ============ ANÁLISIS ============
 
-def send_alert_notification(alert: dict, current_price: float) -> bool:
-    """
-    Envía notificación formateada de alerta básica (precio, RSI)
-    
-    Args:
-        alert: Diccionario con configuración de alerta
-        current_price: Precio actual
-        
-    Returns:
-        True si se envió
-    """
-    condition_text = {
-        'mayor_que': 'Mayor que',
-        'menor_que': 'Menor que',
-        'igual_a': 'Igual a'
-    }.get(alert['condition'], alert['condition'])
-    
-    emoji = "🔴" if alert['condition'] == 'menor_que' else "🟢"
-    
-    message = f"""
-{emoji} *ALERTA AUTOMÁTICA - CRYPTOVIEW PRO*
-
-💰 *{alert['crypto']}*
-📊 Tipo: {alert['type']}
-
-🎯 *Condición Configurada:*
-{condition_text} ${alert['threshold']:,.2f}
-
-📈 *Precio Actual:*
-${current_price:,.2f}
-
-💡 *Diferencia:*
-${abs(current_price - alert['threshold']):,.2f}
-
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-_Alerta automática ejecutada por GitHub Actions_
-_CryptoView Pro by Julian E. Coronado Gil_
-"""
-    
-    return send_telegram(message)
-
-
-def send_support_break_alert(crypto: str, monthly_data: dict) -> bool:
-    """
-    Envía alerta cuando se rompe el soporte (mínimo mensual)
-    
-    Args:
-        crypto: Símbolo
-        monthly_data: Datos del mínimo mensual
-        
-    Returns:
-        True si envió
-    """
-    message = f"""
-🔴 *SOPORTE ROTO - ALERTA CRÍTICA*
-
-💰 *{crypto}*
-
-⚠️ *El precio ha caído por debajo del mínimo mensual*
-
-📉 *Mínimo del último mes:*
-${monthly_data['low']:,.2f}
-📅 Fecha: {monthly_data['date'].strftime('%Y-%m-%d')}
-
-📊 *Precio Actual:*
-${monthly_data['current']:,.2f}
-
-💔 *Caída desde mínimo:*
-{monthly_data['pct_from_low']:.2f}%
-
-⚠️ *Implicaciones:*
-• Soporte técnico quebrado
-• Posible tendencia bajista
-• Alto riesgo de más caídas
-
-🛡️ *Estrategia sugerida:*
-• Stop-loss si estás en largo
-• Esperar confirmación de rebote
-• Considerar entradas escalonadas
-
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-_Alerta automática - CryptoView Pro_
-_by Julian E. Coronado Gil_
-"""
-    
-    return send_telegram(message)
-
-
-def send_resistance_break_alert(crypto: str, monthly_data: dict) -> bool:
-    """
-    Envía alerta cuando se rompe la resistencia (máximo mensual)
-    
-    Args:
-        crypto: Símbolo
-        monthly_data: Datos del máximo mensual
-        
-    Returns:
-        True si envió
-    """
-    message = f"""
-🟢 *RESISTENCIA ROTA - BREAKOUT*
-
-💰 *{crypto}*
-
-🚀 *El precio ha superado el máximo mensual*
-
-📈 *Máximo del último mes:*
-${monthly_data['high']:,.2f}
-📅 Fecha: {monthly_data['date'].strftime('%Y-%m-%d')}
-
-📊 *Precio Actual:*
-${monthly_data['current']:,.2f}
-
-💚 *Ganancia desde máximo:*
-{monthly_data['pct_from_high']:+.2f}%
-
-✨ *Implicaciones:*
-• Resistencia técnica quebrada
-• Posible tendencia alcista fuerte
-• Momentum positivo
-
-🎯 *Estrategia sugerida:*
-• Posible entrada en pullback
-• Trailing stop recomendado
-• Tomar parciales en niveles clave
-
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-_Alerta automática - CryptoView Pro_
-_by Julian E. Coronado Gil_
-"""
-    
-    return send_telegram(message)
-
-
-# ============ FUNCIONES DE PRECIO ============
-
-def get_current_price(symbol: str, exchange_name: str = 'kraken') -> float:
-    """
-    Obtiene precio actual de una criptomoneda
-    
-    Args:
-        symbol: Símbolo del par (ej: 'BTC/USDT')
-        exchange_name: Nombre del exchange ('kraken', 'binance')
-        
-    Returns:
-        Precio actual o None si hay error
-    """
+def get_price_data(symbol: str, exchange_name: str = 'kraken'):
+    """Obtiene datos de precio y volumen"""
     try:
-        # Seleccionar exchange
-        if exchange_name.lower() == 'kraken':
-            exchange = ccxt.kraken()
-        elif exchange_name.lower() == 'binance':
-            exchange = ccxt.binance()
-        else:
-            exchange = ccxt.kraken()
-        
-        # Obtener ticker
+        exchange = ccxt.kraken() if exchange_name == 'kraken' else ccxt.binance()
         ticker = exchange.fetch_ticker(symbol)
-        price = ticker['last']
+        ohlcv_1d = exchange.fetch_ohlcv(symbol, '1d', limit=7)
+        ohlcv_1h = exchange.fetch_ohlcv(symbol, '1h', limit=200)
         
-        print(f"📊 {symbol}: ${price:,.2f}")
-        return price
-        
-    except Exception as e:
-        print(f"❌ Error obteniendo precio de {symbol}: {e}")
-        return None
-
-
-def get_monthly_low(symbol: str, exchange_name: str = 'kraken') -> dict:
-    """
-    Obtiene el mínimo de los últimos 30 días
-    
-    Args:
-        symbol: Par de crypto (ej: 'BTC/USDT')
-        exchange_name: Exchange a usar
-        
-    Returns:
-        Dict con {low, date, current_price, percentage_from_low, is_below}
-    """
-    try:
-        if exchange_name.lower() == 'kraken':
-            exchange = ccxt.kraken()
-        elif exchange_name.lower() == 'binance':
-            exchange = ccxt.binance()
-        else:
-            exchange = ccxt.kraken()
-        
-        # Obtener 30 días de datos (1 día por vela)
-        ohlcv = exchange.fetch_ohlcv(symbol, '1d', limit=30)
-        
-        # Encontrar mínimo
-        lows = [candle[3] for candle in ohlcv]  # index 3 = low
-        dates = [candle[0] for candle in ohlcv]  # index 0 = timestamp
-        
-        min_price = min(lows)
-        min_index = lows.index(min_price)
-        min_date = datetime.fromtimestamp(dates[min_index] / 1000)
-        
-        # Precio actual
-        current = get_current_price(symbol, exchange_name)
-        
-        # Calcular porcentaje desde el mínimo
-        if current:
-            pct_from_low = ((current - min_price) / min_price) * 100
-        else:
-            pct_from_low = 0
-        
-        result = {
-            'low': min_price,
-            'date': min_date,
-            'current': current,
-            'pct_from_low': pct_from_low,
-            'is_below': current < min_price if current else False
+        return {
+            'current': ticker['last'],
+            'volume_24h': ticker['quoteVolume'],
+            'ohlcv_7d': ohlcv_1d,
+            'ohlcv_200h': ohlcv_1h
         }
-        
-        print(f"📉 Mínimo 30d de {symbol}: ${min_price:,.2f} ({min_date.strftime('%Y-%m-%d')})")
-        print(f"   Actual: ${current:,.2f} ({pct_from_low:+.2f}% desde mínimo)")
-        
-        return result
-        
     except Exception as e:
-        print(f"❌ Error obteniendo mínimo mensual de {symbol}: {e}")
+        print(f"❌ Error {symbol}: {e}")
         return None
 
 
-def get_monthly_high(symbol: str, exchange_name: str = 'kraken') -> dict:
-    """
-    Obtiene el máximo de los últimos 30 días
-    
-    Args:
-        symbol: Par de crypto
-        exchange_name: Exchange
-        
-    Returns:
-        Dict con información del máximo
-    """
+def analyze_weekly_range(symbol: str, data: dict) -> dict:
+    """Analiza mínimo y máximo de la última semana"""
     try:
-        if exchange_name.lower() == 'kraken':
-            exchange = ccxt.kraken()
-        else:
-            exchange = ccxt.binance()
+        ohlcv = data['ohlcv_7d']
         
-        ohlcv = exchange.fetch_ohlcv(symbol, '1d', limit=30)
+        lows = [c[3] for c in ohlcv]
+        highs = [c[2] for c in ohlcv]
         
-        highs = [candle[2] for candle in ohlcv]  # index 2 = high
-        dates = [candle[0] for candle in ohlcv]
+        weekly_low = min(lows)
+        weekly_high = max(highs)
+        current = data['current']
         
-        max_price = max(highs)
-        max_index = highs.index(max_price)
-        max_date = datetime.fromtimestamp(dates[max_index] / 1000)
+        # Calcular cambio semanal
+        price_7d_ago = ohlcv[0][4]
+        weekly_change = ((current - price_7d_ago) / price_7d_ago) * 100
         
-        current = get_current_price(symbol, exchange_name)
-        
-        if current:
-            pct_from_high = ((current - max_price) / max_price) * 100
-        else:
-            pct_from_high = 0
-        
-        result = {
-            'high': max_price,
-            'date': max_date,
+        return {
+            'low': weekly_low,
+            'high': weekly_high,
             'current': current,
-            'pct_from_high': pct_from_high,
-            'is_above': current > max_price if current else False
+            'weekly_change': weekly_change,
+            'support_broken': current < weekly_low,
+            'resistance_broken': current > weekly_high,
+            'distance_from_low': ((current - weekly_low) / weekly_low) * 100,
+            'distance_from_high': ((current - weekly_high) / weekly_high) * 100
         }
-        
-        print(f"📈 Máximo 30d de {symbol}: ${max_price:,.2f} ({max_date.strftime('%Y-%m-%d')})")
-        print(f"   Actual: ${current:,.2f} ({pct_from_high:+.2f}% desde máximo)")
-        
-        return result
-        
     except Exception as e:
-        print(f"❌ Error obteniendo máximo mensual: {e}")
+        print(f"❌ Error análisis semanal: {e}")
         return None
 
 
-def calculate_rsi(symbol: str, period: int = 14) -> float:
-    """
-    Calcula RSI de una criptomoneda
-    
-    Args:
-        symbol: Símbolo del par
-        period: Período del RSI
-        
-    Returns:
-        Valor RSI o None
-    """
+def calculate_ema(prices: list, period: int) -> float:
+    """Calcula EMA"""
     try:
-        exchange = ccxt.kraken()
-        ohlcv = exchange.fetch_ohlcv(symbol, '1h', limit=period + 1)
+        k = 2 / (period + 1)
+        ema = prices[0]
+        for price in prices[1:]:
+            ema = (price * k) + (ema * (1 - k))
+        return ema
+    except:
+        return None
+
+
+def detect_ema_cross(data: dict) -> dict:
+    """Detecta Golden Cross (50/200) o Death Cross"""
+    try:
+        closes = [c[4] for c in data['ohlcv_200h']]
         
-        closes = [x[4] for x in ohlcv]
+        if len(closes) < 200:
+            return {'cross': 'insufficient_data'}
         
-        # Calcular cambios
+        ema_50_current = calculate_ema(closes[-50:], 50)
+        ema_200_current = calculate_ema(closes[-200:], 200)
+        
+        ema_50_prev = calculate_ema(closes[-51:-1], 50)
+        ema_200_prev = calculate_ema(closes[-201:-1], 200)
+        
+        # Detectar cruce
+        if ema_50_prev < ema_200_prev and ema_50_current > ema_200_current:
+            return {'cross': 'golden', 'ema_50': ema_50_current, 'ema_200': ema_200_current}
+        elif ema_50_prev > ema_200_prev and ema_50_current < ema_200_current:
+            return {'cross': 'death', 'ema_50': ema_50_current, 'ema_200': ema_200_current}
+        else:
+            return {
+                'cross': 'none',
+                'ema_50': ema_50_current,
+                'ema_200': ema_200_current,
+                'position': 'bullish' if ema_50_current > ema_200_current else 'bearish'
+            }
+    except Exception as e:
+        print(f"❌ Error EMA: {e}")
+        return {'cross': 'error'}
+
+
+def calculate_rsi(data: dict, period: int = 14) -> float:
+    """Calcula RSI"""
+    try:
+        closes = [c[4] for c in data['ohlcv_200h'][-period-1:]]
         deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
         
         gains = [d if d > 0 else 0 for d in deltas]
@@ -372,306 +159,394 @@ def calculate_rsi(symbol: str, period: int = 14) -> float:
         
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
-        
-        print(f"📈 RSI de {symbol}: {rsi:.2f}")
         return rsi
-        
-    except Exception as e:
-        print(f"❌ Error calculando RSI: {e}")
+    except:
         return None
 
 
-def calculate_24h_change(symbol: str, exchange_name: str = 'kraken') -> dict:
-    """
-    Calcula el cambio porcentual en 24 horas
-    
-    Args:
-        symbol: Par de crypto
-        exchange_name: Exchange
-        
-    Returns:
-        Dict con información del cambio
-    """
+def detect_volume_spike(data: dict) -> dict:
+    """Detecta volumen anormal >200%"""
     try:
-        if exchange_name.lower() == 'kraken':
-            exchange = ccxt.kraken()
-        else:
-            exchange = ccxt.binance()
+        volumes = [c[5] for c in data['ohlcv_7d'][:-1]]  # Últimos 6 días
+        avg_volume = sum(volumes) / len(volumes)
+        current_volume = data['volume_24h']
         
-        ohlcv = exchange.fetch_ohlcv(symbol, '1h', limit=25)
+        spike_ratio = (current_volume / avg_volume) if avg_volume > 0 else 1
         
-        price_24h_ago = ohlcv[-25][4]  # Cierre de hace 24h
-        current = get_current_price(symbol, exchange_name)
-        
-        if current:
-            change_pct = ((current - price_24h_ago) / price_24h_ago) * 100
-            change_abs = current - price_24h_ago
-        else:
-            change_pct = 0
-            change_abs = 0
-        
-        result = {
-            'price_24h_ago': price_24h_ago,
-            'current': current,
-            'change_pct': change_pct,
-            'change_abs': change_abs
+        return {
+            'current': current_volume,
+            'average': avg_volume,
+            'spike_ratio': spike_ratio,
+            'is_spike': spike_ratio > 2.0
         }
+    except:
+        return {'is_spike': False}
+
+
+def check_psychological_level(symbol: str, price: float) -> dict:
+    """Verifica si está cerca de nivel psicológico"""
+    if symbol not in PSYCHOLOGICAL_LEVELS:
+        return {'near_level': False}
+    
+    levels = PSYCHOLOGICAL_LEVELS[symbol]
+    
+    for level in levels:
+        distance_pct = abs((price - level) / level) * 100
         
-        print(f"📊 Cambio 24h de {symbol}: {change_pct:+.2f}%")
-        
-        return result
-        
-    except Exception as e:
-        print(f"❌ Error calculando cambio 24h: {e}")
-        return None
+        # Si está a menos de 1% del nivel
+        if distance_pct < 1.0:
+            return {
+                'near_level': True,
+                'level': level,
+                'distance_pct': distance_pct,
+                'above': price > level
+            }
+    
+    return {'near_level': False}
 
 
-# ============ FUNCIONES DE ALERTAS ============
+# ============ ALERTAS ============
 
-def load_alerts() -> list:
-    """
-    Carga alertas desde archivo JSON
-    
-    Returns:
-        Lista de alertas
-    """
-    try:
-        if ALERTS_FILE.exists():
-            with open(ALERTS_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data.get('alerts', [])
-        else:
-            print(f"⚠️ Archivo de alertas no encontrado: {ALERTS_FILE}")
-            return []
-    except Exception as e:
-        print(f"❌ Error cargando alertas: {e}")
-        return []
+def send_support_break_alert(symbol: str, analysis: dict):
+    """Alerta: Mínimo semanal roto - OPORTUNIDAD DE COMPRA"""
+    message = f"""
+🟢 *OPORTUNIDAD DE COMPRA - {symbol}*
 
+💎 *Precio rompió MÍNIMO SEMANAL*
 
-def check_alert(alert: dict) -> bool:
-    """
-    Verifica alertas básicas (precio, RSI)
-    
-    Args:
-        alert: Diccionario con configuración de alerta
-        
-    Returns:
-        True si se cumplió y envió notificación
-    """
-    if not alert.get('enabled', False):
-        print(f"⏭️  Alerta deshabilitada: {alert.get('crypto')}")
-        return False
-    
-    print(f"\n🔍 Revisando: {alert.get('crypto')} - {alert.get('type')}")
-    
-    # Obtener valor actual según tipo de alerta
-    if alert['type'] == 'precio':
-        current_value = get_current_price(alert['crypto'], alert.get('exchange', 'kraken'))
-    elif alert['type'] == 'rsi':
-        current_value = calculate_rsi(alert['crypto'])
-    else:
-        print(f"❌ Tipo de alerta no soportado: {alert['type']}")
-        return False
-    
-    if current_value is None:
-        print(f"❌ No se pudo obtener valor para {alert['crypto']}")
-        return False
-    
-    # Verificar condición
-    triggered = False
-    condition = alert['condition']
-    threshold = alert['threshold']
-    
-    if condition == 'mayor_que' and current_value > threshold:
-        triggered = True
-    elif condition == 'menor_que' and current_value < threshold:
-        triggered = True
-    elif condition == 'igual_a' and abs(current_value - threshold) < (threshold * 0.01):  # ±1%
-        triggered = True
-    
-    if triggered:
-        print(f"🔔 ¡ALERTA ACTIVADA! {alert['crypto']}: {current_value} {condition} {threshold}")
-        return send_alert_notification(alert, current_value)
-    else:
-        print(f"✓ No activada ({current_value} vs {threshold})")
-        return False
+📉 *Mínimo 7 días:* ${analysis['low']:,.2f}
+📊 *Precio Actual:* ${analysis['current']:,.2f}
+💚 *Caída:* {analysis['distance_from_low']:.2f}%
 
+📈 *Cambio Semanal:* {analysis['weekly_change']:+.2f}%
 
-def check_smart_alert(alert: dict) -> bool:
-    """
-    Verifica alertas inteligentes (mínimo/máximo mensual, cambios 24h)
-    
-    Args:
-        alert: Diccionario con configuración
-        
-    Returns:
-        True si se activó
-    """
-    if not alert.get('enabled', False):
-        print(f"⏭️  Alerta deshabilitada: {alert.get('crypto')}")
-        return False
-    
-    crypto = alert['crypto']
-    alert_type = alert['type']
-    
-    print(f"\n🔍 Revisando alerta inteligente: {crypto} - {alert_type}")
-    
-    if alert_type == 'minimo_mensual':
-        monthly_data = get_monthly_low(crypto, alert.get('exchange', 'kraken'))
-        
-        if monthly_data and monthly_data['is_below']:
-            print(f"🔴 ¡SOPORTE ROTO! {crypto} cayó bajo mínimo mensual")
-            return send_support_break_alert(crypto, monthly_data)
-        else:
-            print(f"✓ Soporte intacto")
-    
-    elif alert_type == 'maximo_mensual':
-        monthly_data = get_monthly_high(crypto, alert.get('exchange', 'kraken'))
-        
-        if monthly_data and monthly_data['is_above']:
-            print(f"🟢 ¡RESISTENCIA ROTA! {crypto} superó máximo mensual")
-            return send_resistance_break_alert(crypto, monthly_data)
-        else:
-            print(f"✓ Resistencia intacta")
-    
-    elif alert_type == 'cambio_24h':
-        change_data = calculate_24h_change(crypto, alert.get('exchange', 'kraken'))
-        
-        if change_data:
-            change_pct = change_data['change_pct']
-            threshold = alert['threshold']
-            
-            if abs(change_pct) > threshold:
-                emoji = "🚀" if change_pct > 0 else "💥"
-                direction = "subió" if change_pct > 0 else "cayó"
-                
-                message = f"""
-{emoji} *CAMBIO EXTREMO 24H - ALERTA CRÍTICA*
+✨ *Señal Técnica:*
+• Soporte semanal quebrado
+• Posible reversión alcista
+• Zona de acumulación
 
-💰 *{crypto}*
-
-📊 *Cambio en 24h:* {change_pct:+.2f}%
-💵 Diferencia: ${change_data['change_abs']:+,.2f}
-
-📉 Hace 24h: ${change_data['price_24h_ago']:,.2f}
-📈 Ahora: ${change_data['current']:,.2f}
-
-⚠️ *Volatilidad extrema detectada*
-
-El precio {direction} {abs(change_pct):.1f}% en las últimas 24 horas.
-
-🎯 *Implicaciones:*
-• Alta volatilidad
-• Posible continuación del movimiento
-• Revisar volumen y noticias
+🎯 *Estrategia de Entrada:*
+• Entrada escalonada (3 partes)
+• Stop-loss: {analysis['low'] * 0.97:.2f} (-3%)
+• Target 1: {analysis['low'] * 1.05:.2f} (+5%)
+• Target 2: {analysis['high']:.2f} (máximo semanal)
 
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 _CryptoView Pro by Julian E. Coronado Gil_
 """
-                send_telegram(message)
-                print(f"🔔 ¡ALERTA ACTIVADA! Cambio extremo: {change_pct:+.2f}%")
-                return True
-            else:
-                print(f"✓ Cambio normal: {change_pct:+.2f}% (umbral: {threshold}%)")
+    send_telegram(message)
+
+
+def send_resistance_break_alert(symbol: str, analysis: dict):
+    """Alerta: Máximo semanal roto - BREAKOUT"""
+    message = f"""
+🚀 *BREAKOUT - {symbol}*
+
+💰 *Precio rompió MÁXIMO SEMANAL*
+
+📈 *Máximo 7 días:* ${analysis['high']:,.2f}
+📊 *Precio Actual:* ${analysis['current']:,.2f}
+💚 *Ganancia:* {analysis['distance_from_high']:+.2f}%
+
+📈 *Cambio Semanal:* {analysis['weekly_change']:+.2f}%
+
+✨ *Señal Técnica:*
+• Resistencia semanal rota
+• Momentum alcista fuerte
+• Posible continuación
+
+🎯 *Estrategia:*
+• Esperar pullback a {analysis['high']:.2f}
+• Trailing stop recomendado
+• Tomar parciales en extensiones
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_CryptoView Pro by Julian E. Coronado Gil_
+"""
+    send_telegram(message)
+
+
+def send_golden_cross_alert(symbol: str, ema_data: dict):
+    """Alerta: Golden Cross detectado"""
+    message = f"""
+🌟 *GOLDEN CROSS - {symbol}*
+
+📈 *EMA 50 cruzó ARRIBA de EMA 200*
+
+📊 *Indicadores:*
+• EMA 50: ${ema_data['ema_50']:,.2f}
+• EMA 200: ${ema_data['ema_200']:,.2f}
+
+✨ *Señal Técnica:*
+• Cruce alcista confirmado
+• Tendencia de largo plazo positiva
+• Alta probabilidad de rally
+
+🎯 *Estrategia:*
+• Entrada en pullback
+• Hold de mediano plazo
+• Stop bajo EMA 200
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_CryptoView Pro by Julian E. Coronado Gil_
+"""
+    send_telegram(message)
+
+
+def send_death_cross_alert(symbol: str, ema_data: dict):
+    """Alerta: Death Cross detectado"""
+    message = f"""
+⚠️ *DEATH CROSS - {symbol}*
+
+📉 *EMA 50 cruzó ABAJO de EMA 200*
+
+📊 *Indicadores:*
+• EMA 50: ${ema_data['ema_50']:,.2f}
+• EMA 200: ${ema_data['ema_200']:,.2f}
+
+⚠️ *Señal Técnica:*
+• Cruce bajista confirmado
+• Tendencia de largo plazo negativa
+• Precaución recomendada
+
+🛡️ *Estrategia:*
+• Reducir exposición
+• Stop-loss ajustados
+• Esperar confirmación de reversión
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_CryptoView Pro by Julian E. Coronado Gil_
+"""
+    send_telegram(message)
+
+
+def send_volume_spike_alert(symbol: str, vol_data: dict, price: float):
+    """Alerta: Volumen anormal"""
+    message = f"""
+📊 *VOLUMEN ANORMAL - {symbol}*
+
+💥 *Volumen {vol_data['spike_ratio']:.1f}x el promedio*
+
+📈 *Precio Actual:* ${price:,.2f}
+📊 *Volumen 24h:* ${vol_data['current']:,.0f}
+📉 *Promedio 7d:* ${vol_data['average']:,.0f}
+
+⚠️ *Implicaciones:*
+• Interés institucional aumentado
+• Posible movimiento fuerte próximo
+• Revisar noticias y contexto
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_CryptoView Pro by Julian E. Coronado Gil_
+"""
+    send_telegram(message)
+
+
+def send_rsi_extreme_alert(symbol: str, rsi: float, price: float):
+    """Alerta: RSI extremo"""
+    if rsi < 25:
+        condition = "SOBREVENTA EXTREMA"
+        emoji = "🟢"
+        signal = "Posible rebote alcista"
+    else:
+        condition = "SOBRECOMPRA EXTREMA"
+        emoji = "🔴"
+        signal = "Posible corrección bajista"
     
-    return False
+    message = f"""
+{emoji} *RSI EXTREMO - {symbol}*
+
+📊 *{condition}*
+
+📈 *Precio:* ${price:,.2f}
+📉 *RSI:* {rsi:.1f}
+
+⚠️ *Señal:* {signal}
+
+🎯 *Estrategia:*
+{'• Zona de acumulación' if rsi < 25 else '• Considerar tomar ganancias'}
+{'• Esperar confirmación' if rsi < 25 else '• Ajustar stop-loss'}
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_CryptoView Pro by Julian E. Coronado Gil_
+"""
+    send_telegram(message)
 
 
-# ============ FUNCIÓN PRINCIPAL ============
+def send_psychological_level_alert(symbol: str, level_data: dict):
+    """Alerta: Cerca de nivel psicológico"""
+    direction = "ARRIBA" if level_data['above'] else "ABAJO"
+    message = f"""
+🎯 *NIVEL PSICOLÓGICO - {symbol}*
+
+💰 *Precio cerca de ${level_data['level']:,.0f}*
+
+📊 *Posición:* {direction}
+📏 *Distancia:* {level_data['distance_pct']:.2f}%
+
+⚠️ *Zona de alta reacción:*
+• Posible rebote o ruptura
+• Alto volumen esperado
+• Monitorear de cerca
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+_CryptoView Pro by Julian E. Coronado Gil_
+"""
+    send_telegram(message)
+
+
+# ============ ANÁLISIS COMPLETO ============
+
+def analyze_crypto(symbol: str, exchange: str = 'kraken') -> dict:
+    """Análisis completo de una crypto"""
+    print(f"\n{'='*50}")
+    print(f"Analizando: {symbol}")
+    print(f"{'='*50}")
+    
+    # Obtener datos
+    data = get_price_data(symbol, exchange)
+    if not data:
+        return None
+    
+    # Análisis
+    weekly = analyze_weekly_range(symbol, data)
+    ema_cross = detect_ema_cross(data)
+    rsi = calculate_rsi(data)
+    volume = detect_volume_spike(data)
+    psych_level = check_psychological_level(symbol, data['current'])
+    
+    alerts_triggered = []
+    
+    # NIVEL 1: Soporte/Resistencia Semanal
+    if weekly['support_broken']:
+        print(f"🟢 SOPORTE ROTO - Oportunidad de compra")
+        send_support_break_alert(symbol, weekly)
+        alerts_triggered.append('support_broken')
+    
+    if weekly['resistance_broken']:
+        print(f"🚀 RESISTENCIA ROTA - Breakout")
+        send_resistance_break_alert(symbol, weekly)
+        alerts_triggered.append('resistance_broken')
+    
+    # NIVEL 2: Golden/Death Cross
+    if ema_cross['cross'] == 'golden':
+        print(f"🌟 GOLDEN CROSS")
+        send_golden_cross_alert(symbol, ema_cross)
+        alerts_triggered.append('golden_cross')
+    elif ema_cross['cross'] == 'death':
+        print(f"⚠️ DEATH CROSS")
+        send_death_cross_alert(symbol, ema_cross)
+        alerts_triggered.append('death_cross')
+    
+    # NIVEL 2: Volumen anormal
+    if volume['is_spike']:
+        print(f"📊 VOLUMEN ANORMAL: {volume['spike_ratio']:.1f}x")
+        send_volume_spike_alert(symbol, volume, data['current'])
+        alerts_triggered.append('volume_spike')
+    
+    # NIVEL 2: RSI extremo
+    if rsi and (rsi < 25 or rsi > 75):
+        print(f"⚠️ RSI EXTREMO: {rsi:.1f}")
+        send_rsi_extreme_alert(symbol, rsi, data['current'])
+        alerts_triggered.append('rsi_extreme')
+    
+    # NIVEL 2: Nivel psicológico
+    if psych_level['near_level']:
+        print(f"🎯 CERCA DE NIVEL: ${psych_level['level']:,.0f}")
+        send_psychological_level_alert(symbol, psych_level)
+        alerts_triggered.append('psychological_level')
+    
+    if not alerts_triggered:
+        print(f"✓ Sin alertas")
+    
+    return {
+        'symbol': symbol,
+        'price': data['current'],
+        'weekly_change': weekly['weekly_change'],
+        'rsi': rsi,
+        'alerts': alerts_triggered
+    }
+
+
+def generate_weekly_report(results: list):
+    """Genera reporte semanal de las top 10"""
+    # Ordenar por ganancia semanal
+    sorted_results = sorted(results, key=lambda x: x['weekly_change'], reverse=True)
+    
+    report = "📊 *REPORTE SEMANAL - TOP 10 CRYPTOS*\n\n"
+    
+    report += "🏆 *Ranking por Ganancia Semanal:*\n\n"
+    
+    for i, r in enumerate(sorted_results, 1):
+        emoji = "🟢" if r['weekly_change'] > 0 else "🔴"
+        rsi_status = ""
+        if r['rsi']:
+            if r['rsi'] < 30:
+                rsi_status = " 🟢RSI:Bajo"
+            elif r['rsi'] > 70:
+                rsi_status = " 🔴RSI:Alto"
+        
+        alerts_str = f" 🔔{len(r['alerts'])}" if r['alerts'] else ""
+        
+        report += f"{i}. {emoji} *{r['symbol'].split('/')[0]}*\n"
+        report += f"   ${r['price']:,.2f} | {r['weekly_change']:+.2f}%{rsi_status}{alerts_str}\n\n"
+    
+    report += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    report += "\n_CryptoView Pro by Julian E. Coronado Gil_"
+    
+    send_telegram(report)
+
+
+# ============ MAIN ============
 
 def main():
-    """
-    Función principal que ejecuta la revisión de alertas
-    """
-    print("=" * 60)
-    print("🔔 CRYPTOVIEW PRO - SISTEMA DE ALERTAS INTELIGENTES")
-    print("=" * 60)
-    print(f"⏰ Ejecutado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"👨‍💻 Developed by Julian E. Coronado Gil")
-    print("=" * 60)
+    print("="*60)
+    print("🔔 CRYPTOVIEW PRO - ALERTAS INTELIGENTES")
+    print("   Top 10 Cryptos + Análisis Semanal + Nivel 2")
+    print("="*60)
+    print(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"👨‍💻 Julian E. Coronado Gil")
+    print("="*60)
     
-    # Verificar configuración de Telegram
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("\n❌ ERROR: Variables de entorno no configuradas")
-        print("Configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en GitHub Secrets")
+        print("\n❌ ERROR: Secrets no configurados")
         return
     
-    print(f"\n✅ Telegram configurado")
-    print(f"📱 Chat ID: {TELEGRAM_CHAT_ID}")
+    results = []
+    total_alerts = 0
     
-    # Cargar alertas
-    alerts = load_alerts()
+    # Analizar cada crypto
+    for crypto in TOP_CRYPTOS:
+        result = analyze_crypto(crypto)
+        if result:
+            results.append(result)
+            total_alerts += len(result['alerts'])
     
-    if not alerts:
-        print("\n⚠️ No hay alertas configuradas")
-        print(f"Crea alertas en: {ALERTS_FILE}")
-        
-        send_telegram(
-            "⚠️ *Sistema de Alertas Activo*\n\n"
-            "No hay alertas configuradas.\n"
-            f"Configuradas: 0\n\n"
-            f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        return
+    # Generar reporte semanal
+    if results:
+        generate_weekly_report(results)
     
-    print(f"\n📋 Alertas encontradas: {len(alerts)}")
-    
-    # Revisar cada alerta
-    triggered_count = 0
-    enabled_count = sum(1 for a in alerts if a.get('enabled', False))
-    
-    for i, alert in enumerate(alerts, 1):
-        print(f"\n{'=' * 50}")
-        print(f"Alerta {i}/{len(alerts)}")
-        print(f"{'=' * 50}")
-        
-        # Detectar tipo de alerta
-        alert_type = alert.get('type')
-        
-        if alert_type in ['minimo_mensual', 'maximo_mensual', 'cambio_24h']:
-            # Alertas inteligentes
-            if check_smart_alert(alert):
-                triggered_count += 1
-        elif alert_type in ['precio', 'rsi']:
-            # Alertas normales
-            if check_alert(alert):
-                triggered_count += 1
-        else:
-            print(f"⚠️ Tipo de alerta desconocido: {alert_type}")
-    
-    # Resumen
-    print("\n" + "=" * 60)
-    print(f"✅ REVISIÓN COMPLETADA")
-    print("=" * 60)
-    print(f"📊 Alertas habilitadas: {enabled_count}/{len(alerts)}")
-    print(f"🔔 Alertas activadas: {triggered_count}")
-    print(f"⏰ Finalizado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
-    
-    # Enviar resumen si no se activó ninguna
-    if triggered_count == 0 and enabled_count > 0:
-        send_telegram(
-            f"✅ *Sistema de Alertas - Todo en Orden*\n\n"
-            f"📊 Alertas monitoreadas: {enabled_count}\n"
-            f"🔔 Alertas activadas: 0\n\n"
-            f"Todos los niveles bajo control 👍\n\n"
-            f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+    print("\n" + "="*60)
+    print(f"✅ ANÁLISIS COMPLETADO")
+    print(f"📊 Cryptos analizadas: {len(results)}/10")
+    print(f"🔔 Alertas activadas: {total_alerts}")
+    print("="*60)
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"\n❌ ERROR CRÍTICO: {e}")
+        print(f"\n❌ ERROR: {e}")
         import traceback
         traceback.print_exc()
         
-        # Enviar error a Telegram
         if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-            send_telegram(
-                f"🚨 *ERROR en Sistema de Alertas*\n\n"
-                f"```\n{str(e)}\n```\n\n"
-                f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            send_telegram(f"🚨 *ERROR Sistema Alertas*\n\n```\n{str(e)}\n```")
